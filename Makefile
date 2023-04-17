@@ -21,6 +21,7 @@ ifeq ($(RELEASE), release)
 endif
 
 all: 
+	cp -r cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --offline
 	cp $(SBI) sbi-qemu
 	cp $(KERNEL_ELF) kernel-qemu
