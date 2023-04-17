@@ -20,7 +20,8 @@ ifeq ($(RELEASE), release)
 	RUST_BUILD_OPTIONS += --release
 endif
 
-all: 
+all:
+	rustup toolchain list
 	rustc --version
 	cp -r cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --offline
