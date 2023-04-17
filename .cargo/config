@@ -8,3 +8,17 @@ rustflags = [
     "-Clink-arg=-T.cargo/linker-riscv.ld", 
     "-Cforce-frame-pointers=yes"
 ]
+
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rcore-os/riscv"]
+git = "https://github.com/rcore-os/riscv"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/yfblock/rust-fatfs.git"]
+git = "https://github.com/yfblock/rust-fatfs.git"
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
