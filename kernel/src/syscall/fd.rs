@@ -237,10 +237,10 @@ pub async fn sys_getdents64(fd: usize, buf_ptr: usize, len: usize) -> Result<usi
         .inner_map(|x| x.fd_table.get(fd))
         .unwrap();
 
-    let ptr = buf_ptr;
+    let mut ptr = buf_ptr;
     for i in file.read_dir().map_err(from_vfs)? {
         let file_bytes = i.filename.as_bytes();
-        let current_len = size_of::<Dirent>() + file_bytes.len();
+        let current_len = size_of::<Dirent>() + file_bytes.len() + 1;
 
         if len - (ptr - buf_ptr) < current_len {
             break;
@@ -248,10 +248,11 @@ pub async fn sys_getdents64(fd: usize, buf_ptr: usize, len: usize) -> Result<usi
         let dirent = c2rust_ref(ptr as *mut Dirent);
         dirent.ino = 0;
         dirent.off = current_len as i64;
-        dirent.reclen = current_len;
-        let buffer = c2rust_buffer(dirent.name.as_mut_ptr(), file_bytes.len());
-        buffer.copy_from_slice(file_bytes);
-
+        dirent.reclen = current_len as u16;
+        let buffer = c2rust_buffer(dirent.name.as_mut_ptr(), file_bytes.len() + 1);
+        buffer[..file_bytes.len()].copy_from_slice(file_bytes);
+        buffer[file_bytes.len()] = b'\0';
+        ptr = ptr + current_len;
     }
     Ok(ptr - buf_ptr)
 }
