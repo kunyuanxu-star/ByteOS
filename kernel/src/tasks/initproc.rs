@@ -47,7 +47,7 @@ fn clear() {
 
 async fn run_all() -> bool {
     let commands = [
-        "brk",
+        // "brk",
         "chdir",
         "clone",
         "close",
