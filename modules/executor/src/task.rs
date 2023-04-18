@@ -296,15 +296,18 @@ impl UserTask {
     }
 
     pub fn sbrk(&self, incre: isize) -> usize {
-        let mut inner = self.inner.lock();
+        // FIX THIS
+        let inner = self.inner.lock();
         let curr_page = inner.heap / PAGE_SIZE;
         let after_page = (inner.heap as isize + incre) as usize / PAGE_SIZE;
+        drop(inner);
         // need alloc frame page
         if after_page > curr_page {
             for i in curr_page..after_page {
                 self.frame_alloc(VirtPage::new(i + 1), MemType::CodeSection);
             }
         }
+        let mut inner = self.inner.lock();
         inner.heap = (inner.heap as isize + incre) as usize;
         inner.heap
     }
