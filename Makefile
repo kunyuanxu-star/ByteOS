@@ -1,5 +1,5 @@
 ARCH := riscv64imac
-LOG  := info
+LOG  := error
 RELEASE := release
 KERNEL_ELF = target/$(ARCH)-unknown-none-elf/$(RELEASE)/kernel
 # SBI	:= tools/rustsbi-qemu.bin
@@ -56,9 +56,5 @@ gdb:
 
 addr2line:
 	addr2line -sfipe $(KERNEL_ELF) | rustfilt
-
-justrun:
-	qemu-system-riscv64 --version
-	qemu-system-riscv64 -machine virt -kernel kernel-qemu -m 128M -nographic -smp 2 -bios sbi-qemu -drive file=mount.img,if=none,format=raw,id=x0  -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
 .PHONY: all run build clean gdb justrun
