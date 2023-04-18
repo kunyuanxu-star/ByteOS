@@ -66,6 +66,7 @@ async fn run_all() -> bool {
         "mount /dev/sda ./mnt",
         "munmap",
         "open",
+        "times",
         "openat",
         "pipe",
         "read",
@@ -75,6 +76,7 @@ async fn run_all() -> bool {
         "unlink",
         "wait",
         "waitpid",
+        "getdents",
         "write",
         "yield",
     ];

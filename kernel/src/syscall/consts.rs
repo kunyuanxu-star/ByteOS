@@ -265,3 +265,11 @@ bitflags! {
             const MAP_FILE            =    0;
         }
 }
+
+pub struct Dirent {
+    pub ino: u64,                // 索引结点号
+    pub off: i64,                // 到下一个dirent的偏移
+    pub reclen: usize,           // 当前dirent的长度
+    pub ftype: u8,               // 文件类型
+    pub name: [u8; 0],           // 文件名
+}

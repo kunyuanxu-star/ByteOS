@@ -11,7 +11,7 @@ use fs::{File, SeekFrom};
 use log::debug;
 use sync::{Mutex, MutexGuard};
 
-use crate::{task_id_alloc, thread, AsyncTask, TaskId, FUTURE_LIST};
+use crate::{task_id_alloc, thread, AsyncTask, TaskId, FUTURE_LIST, TMS};
 
 #[allow(dead_code)]
 pub struct KernelTask {
@@ -145,6 +145,7 @@ pub struct TaskInner {
     pub heap: usize,
     pub entry: usize,
     pub children: Vec<Arc<UserTask>>,
+    pub tms: TMS,
 }
 
 #[allow(dead_code)]
@@ -191,6 +192,7 @@ impl UserTask {
             heap: 0,
             children: Vec::new(),
             entry: 0,
+            tms: Default::default(),
         };
 
         Arc::new(Self {
