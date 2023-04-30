@@ -17,11 +17,26 @@ use hal;
 use kalloc;
 use panic_handler as _;
 
+
+fn clear_bss() {
+    extern "C" {
+        fn sbss();
+        fn ebss();
+    }
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
+            .fill(0);
+    }
+}
+
+
 #[no_mangle]
 fn main(hart_id: usize, device_tree: usize) {
     if hart_id != 0 {
         loop {}
     }
+
+    clear_bss();
 
     let str = include_str!("banner.txt");
     println!("{}", str);
@@ -48,7 +63,7 @@ fn main(hart_id: usize, device_tree: usize) {
     devices::prepare_devices();
 
     // initialize filesystem
-    fs::init();
+    // fs::init();
 
     // init kernel threads and async executor
     tasks::init();

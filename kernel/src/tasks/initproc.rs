@@ -227,10 +227,10 @@ pub async fn initproc() {
 
     // command("busybox sh").await;
     // command("busybox sh busybox_testcode.sh").await;
-    run_libc_test().await;
+    // run_libc_test().await;
     // run_all().await;
 
-    // simple_shell().await;
+    simple_shell().await;
     // command("helloworld").await;
     // command("filelist").await;
 }
