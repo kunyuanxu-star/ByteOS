@@ -35,7 +35,10 @@ impl Write for Logger {
 }
 
 pub fn init() {
-    log::set_logger(&Logger).unwrap();
+    if let Err(e) = log::set_logger(&Logger) {
+        println!("log error: {:?}", e);
+        return;
+    }
     log::set_max_level(match option_env!("LOG") {
         Some("error") => LevelFilter::Error,
         Some("warn") => LevelFilter::Warn,
