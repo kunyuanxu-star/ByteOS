@@ -87,7 +87,7 @@ pub struct ThreadControlBlock {
     pub clear_child_tid: usize,
     pub set_child_tid: usize,
     pub signal: SignalList,
-    pub exit_signal: u8
+    pub exit_signal: u8,
 }
 
 #[allow(dead_code)]
@@ -144,7 +144,7 @@ impl UserTask {
             clear_child_tid: 0,
             set_child_tid: 0,
             signal: SignalList::new(),
-            exit_signal: 0
+            exit_signal: 0,
         });
 
         Arc::new(Self {
@@ -305,7 +305,10 @@ impl UserTask {
         if let Some(parent) = self.parent.upgrade() {
             parent.as_user_task().map(|x| {
                 if exit_signal != 0 {
-                    x.tcb.write().signal.add_signal(SignalFlags::from_usize(exit_signal as usize));
+                    x.tcb
+                        .write()
+                        .signal
+                        .add_signal(SignalFlags::from_usize(exit_signal as usize));
                 } else {
                     x.tcb.write().signal.add_signal(SignalFlags::SIGCHLD);
                 }
@@ -435,7 +438,7 @@ impl UserTask {
             clear_child_tid: 0,
             set_child_tid: 0,
             signal: SignalList::new(),
-            exit_signal: 0
+            exit_signal: 0,
         });
 
         tcb.write().cx.set_ret(0);

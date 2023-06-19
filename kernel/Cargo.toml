@@ -28,3 +28,4 @@ bit_field = "0.10.1"
 kmacros = { path = "../modules/kmacros" }
 k210-sdcard = { path = "../modules/k210-sdcard", optional = true }
 lose-net-stack = { git = "https://github.com/yfblock/lose-net-stack", rev = "f681312"}
+cv1811-sd = { path = "../modules/cv1811-sd" }

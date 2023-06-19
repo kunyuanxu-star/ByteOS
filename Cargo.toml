@@ -25,6 +25,7 @@ members = [
     "modules/k210-sdcard",
     "modules/kmacros",
     "modules/kmacros/impl",
+    "modules/cv1811-sd",
 
     # kernel
     "kernel"

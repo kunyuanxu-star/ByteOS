@@ -46,7 +46,7 @@ pub fn init_interrupt() {
     }
 
     // 初始化定时器
-    timer::init();
+    // timer::init();
 }
 
 // 内核中断回调
@@ -67,10 +67,8 @@ fn kernel_callback(context: &mut Context) -> usize {
         Trap::Exception(Exception::Breakpoint) => {
             context.sepc += 2;
             TrapType::Breakpoint
-        },
-        Trap::Exception(Exception::LoadFault) => {
-            TrapType::Unknown
         }
+        Trap::Exception(Exception::LoadFault) => TrapType::Unknown,
         // 时钟中断
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             timer::set_next_timeout();

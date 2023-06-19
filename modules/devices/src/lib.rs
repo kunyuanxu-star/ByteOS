@@ -90,7 +90,7 @@ pub fn prepare_devices() {
             if let Some(f) = driver_manager.get(compatible.first()) {
                 f(&child);
             }
-            // info!("    {}  {}", child.name, compatible.first());
+            info!("    {}  {}", child.name, compatible.first());
         }
     }
 

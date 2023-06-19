@@ -1,8 +1,8 @@
-use frame_allocator::frame_alloc;
 use ::signal::SignalFlags;
 use alloc::sync::Arc;
-use arch::{get_time, trap_pre_handle, user_restore, Context, ContextOps, VirtPage, PTEFlags};
+use arch::{get_time, trap_pre_handle, user_restore, Context, ContextOps, PTEFlags, VirtPage};
 use executor::{MemType, UserTask};
+use frame_allocator::frame_alloc;
 use log::{debug, warn};
 
 use crate::syscall::{consts::SYS_SIGRETURN, syscall};
@@ -20,22 +20,19 @@ pub fn user_cow_int(task: Arc<UserTask>, cx_ref: &mut Context, addr: usize) {
     warn!("store/intruction page fault @ {:#x} vpn: {}", addr, vpn);
     // warn!("user_task map: {:#x?}", task.pcb.lock().memset);
     let mut pcb = task.pcb.lock();
-    let finded = pcb
-        .memset
-        .iter_mut()
-        .find_map(|mem_area| {
-            mem_area
-                .mtrackers
-                .iter_mut()
-                // .find(|x| x.vpn == vpn && mem_area.mtype == MemType::Clone)
-                .find(|x| x.vpn == vpn)
-        });
+    let finded = pcb.memset.iter_mut().find_map(|mem_area| {
+        mem_area
+            .mtrackers
+            .iter_mut()
+            // .find(|x| x.vpn == vpn && mem_area.mtype == MemType::Clone)
+            .find(|x| x.vpn == vpn)
+    });
 
     match finded {
         Some(map_track) => {
             // tips: this finded will consume a strong count.
             debug!("strong count: {}", Arc::strong_count(&map_track.tracker));
-            if Arc::strong_count(&map_track.tracker) > 1  {
+            if Arc::strong_count(&map_track.tracker) > 1 {
                 let src_ppn = map_track.tracker.0;
                 let dst_ppn = frame_alloc().expect("can't alloc @ user page fault");
                 dst_ppn.0.copy_value_from_another(src_ppn);
@@ -98,10 +95,16 @@ pub async fn handle_user_interrupt(
             warn!("store/intruction page fault @ {:#x} vpn: {}", addr, vpn);
             warn!("the fault occurs @ {:#x}", cx_ref.sepc());
             warn!("user_task map: {:#x?}", task.pcb.lock().memset);
-            warn!("mapped ppn addr: {:#x} @ {}", cx_ref.sepc(), task.page_table.virt_to_phys(cx_ref.sepc().into()));
+            warn!(
+                "mapped ppn addr: {:#x} @ {}",
+                cx_ref.sepc(),
+                task.page_table.virt_to_phys(cx_ref.sepc().into())
+            );
             panic!("illegal Instruction")
         }
-        arch::TrapType::StorePageFault(addr) | arch::TrapType::InstructionPageFault(addr) => user_cow_int(task.clone(), cx_ref, addr),
+        arch::TrapType::StorePageFault(addr) | arch::TrapType::InstructionPageFault(addr) => {
+            user_cow_int(task.clone(), cx_ref, addr)
+        }
     }
     task.inner_map(|inner| inner.tms.stime += (get_time() - sstart) as u64);
     UserTaskControlFlow::Continue

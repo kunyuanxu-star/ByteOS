@@ -12,13 +12,28 @@ mod modules;
 mod syscall;
 mod tasks;
 
+use arch::{shutdown, Context, TrapType};
 use devices;
+use executor::get_current_task;
 use frame_allocator;
 use hal;
 use kalloc;
+use log::warn;
 use panic_handler as _;
 
 use crate::tasks::kernel::kernel_interrupt;
+
+pub fn kernel_int(_cx: &mut Context, trap_type: TrapType) {
+    match trap_type {
+        TrapType::StorePageFault(addr) | TrapType::InstructionPageFault(addr) => {
+            // judge whether it is trigger by a user_task handler.
+        }
+        _ => {
+            // warn!("trap_type: {:?}  context: {:#x?}", trap_type, cx);
+            warn!("kernel_interrupt");
+        }
+    };
+}
 
 #[no_mangle]
 fn main(hart_id: usize, device_tree: usize) {
@@ -44,7 +59,7 @@ fn main(hart_id: usize, device_tree: usize) {
 
     // initialize interrupt
     hal::interrupt::init();
-    hal::interrupt::reg_kernel_int(kernel_interrupt);
+    hal::interrupt::reg_kernel_int(kernel_int);
 
     // print boot info
     info!("booting at kernel {}", hart_id);
@@ -61,11 +76,16 @@ fn main(hart_id: usize, device_tree: usize) {
     // get devices and init
     devices::prepare_devices();
 
-    // initialize filesystem
-    fs::init();
+    // init cv1811 sdcard
+    // this is a test function for developing
+    cv1811_sd::init();
 
-    // init kernel threads and async executor
-    tasks::init();
+    // // initialize filesystem
+    // fs::init();
+
+    // // init kernel threads and async executor
+    // tasks::init();
 
     println!("Task All Finished!");
+    shutdown();
 }
