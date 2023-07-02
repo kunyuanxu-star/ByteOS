@@ -82,6 +82,7 @@ pub fn init() {
     filesystems.push(RamFs::new());
     filesystems.push(RamFs::new());
     filesystems.push(ProcFS::new());
+    filesystems.push(RamFs::new());
 
     FILESYSTEMS.init_by(filesystems);
 
@@ -96,6 +97,7 @@ pub fn init() {
         rootfs.mkdir("tmp_home").expect("can't create tmp_home dir");
         rootfs.mkdir("var").expect("can't create var dir");
         rootfs.mkdir("proc").expect("can't create proc dir");
+        rootfs.mkdir("bin").expect("can't create proc dir");
 
         // let so_files: Vec<DirEntry> = rootfs
         //     .read_dir()
@@ -139,6 +141,9 @@ pub fn init() {
                 .link(&file.filename, &(String::from("/") + &file.filename))
                 .expect("can't link file to tmpfs");
         }
+        let binfs = open("/bin").expect("can't open /bin");
+        // binfs.link("sh", "/busybox").expect("can't link /busyox");
+        binfs.link("sleep", "/busybox").expect("can't link /busyox");
     }
     cache::init();
 }

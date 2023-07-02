@@ -214,13 +214,13 @@ pub async fn initproc() {
     // command("busybox ash lmbench_testcode.sh").await;
     // command("busybox sh iozone_testcode.sh").await;
     // command("busybox sh unixbench_testcode.sh").await;
-    // command("busybox sh cyclictest_testcode.sh").await;
+    command("busybox sh cyclictest_testcode.sh").await;
     // command("./runtest.exe -w entry-static.exe fdopen").await;
-    command("./runtest.exe -w entry-static.exe socket").await;
+    // command("./runtest.exe -w entry-static.exe socket").await;
     // command("./runtest.exe -w entry-dynamic.exe daemon_failure").await;
     // command("./runtest.exe -w entry-dynamic.exe stat").await;
     // command("./looper 2 ./multi.sh 1").await;
-    // command("busybox sh ./multi.sh 1").await;
+    // command("busybox ls /bin").await;
     // command("busybox sh ./tst.sh ./sort.src").await;
     // command("./runtest.exe -w entry-dynamic.exe pthread_cancel_points").await;
 
