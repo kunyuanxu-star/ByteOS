@@ -223,6 +223,7 @@ pub async fn initproc() {
     //     command(x).await;
     //     info!("No.{} finished!", i);
     // }
+
     command("busybox echo run time-test").await;
     command("time-test").await;
 
@@ -234,6 +235,9 @@ pub async fn initproc() {
 
     command("busybox echo run lua_testcode.sh").await;
     command("busybox sh lua_testcode.sh").await;
+
+    command("libc-bench").await;
+
 
     command("busybox echo run netperf_testcode.sh").await;
     command("busybox sh netperf_testcode.sh").await;
