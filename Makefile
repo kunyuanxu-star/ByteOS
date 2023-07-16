@@ -48,7 +48,7 @@ features += board-$(BOARD)
 
 all: 
 	cp -R cargo .cargo
-	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --offline
+	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --features "$(features)" --offline
 #	cp $(SBI) sbi-qemu
 	cp $(KERNEL_ELF) kernel-qemu
 
