@@ -49,7 +49,7 @@ features += board-$(BOARD)
 all: 
 	cp -R cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --offline
-	cp $(SBI) sbi-qemu
+#	cp $(SBI) sbi-qemu
 	cp $(KERNEL_ELF) kernel-qemu
 
 fs-img:
