@@ -238,7 +238,6 @@ pub async fn initproc() {
 
     command("libc-bench").await;
 
-
     command("busybox echo run netperf_testcode.sh").await;
     command("busybox sh netperf_testcode.sh").await;
     
@@ -258,6 +257,8 @@ pub async fn initproc() {
 
     command("busybox echo run unixbench_testcode.sh").await;
     command("busybox sh unixbench_testcode.sh").await;
+
+    // command("cyclictest -a -i 1000 -t1 -n -p99 -D 1s -q").await;
 
     // command("./runtest.exe -w entry-static.exe pthread_cancel_points").await;
     // command("./runtest.exe -w entry-static.exe pthread_cancel").await;

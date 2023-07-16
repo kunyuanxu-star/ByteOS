@@ -219,6 +219,7 @@ pub const SYS_NANOSLEEP: usize = 101;
 pub const SYS_SETITIMER: usize = 103;
 pub const SYS_GETTIME: usize = 113;
 pub const SYS_CLOCK_GETRES: usize = 114;
+pub const SYS_CLOCK_NANOSLEEP: usize = 115;
 pub const SYS_KLOGCTL: usize = 116;
 pub const SYS_SCHED_SETSCHEDULER: usize = 119;
 pub const SYS_SCHED_GETSCHEDULER: usize = 120;

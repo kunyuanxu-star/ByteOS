@@ -169,3 +169,38 @@ pub async fn sys_setitimer(
         Err(LinuxError::EPERM)
     }
 }
+
+pub async fn sys_clock_nanosleep(
+    clock_id: usize,
+    flags: usize,
+    req_ptr: UserRef<TimeSpec>,
+    rem_ptr: UserRef<TimeSpec>,
+) -> Result<usize, LinuxError> {
+    debug!(
+        "[task {}] sys_clock_nanosleep @ clock_id: {}, flags: {:#x} req_ptr: {}, rem_ptr: {}",
+        current_task().get_task_id(),
+        clock_id,
+        flags,
+        req_ptr,
+        rem_ptr
+    );
+    let ns = current_nsec();
+    let req = req_ptr.get_mut();
+    let task = current_user_task();
+    debug!("nano sleep {} nseconds", req.sec * 1_000_000_000 + req.nsec);
+
+    // let res = match select(
+    //     WaitHandleAbleSignal(task),
+    //     WaitUntilsec(ns + req.sec * 1_000_000_000 + req.nsec),
+    // )
+    // .await
+    // {
+    //     executor::Either::Right(_) => Ok(0),
+    //     executor::Either::Left(_) => Err(LinuxError::EINTR),
+    // };
+    // if rem_ptr.is_valid() {
+    //     *rem_ptr.get_mut() = Default::default();
+    // }
+    WaitUntilsec(ns + req.sec * 1_000_000_000 + req.nsec);
+    Ok(0)
+}

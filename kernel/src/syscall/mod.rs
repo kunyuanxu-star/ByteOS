@@ -30,7 +30,7 @@ use self::{
         SYS_SHMCTL, SYS_SHMGET, SYS_SHUTDOWN, SYS_SIGACTION, SYS_SIGPROCMASK, SYS_SIGRETURN,
         SYS_SIGSUSPEND, SYS_SIGTIMEDWAIT, SYS_SOCKET, SYS_STATFS, SYS_SYSINFO, SYS_TIMES,
         SYS_TKILL, SYS_UMOUNT2, SYS_UNAME, SYS_UNLINKAT, SYS_UTIMEAT, SYS_WAIT4, SYS_WRITE,
-        SYS_WRITEV, SYS_SOCKETPAIR, SYS_CLOCK_GETRES,
+        SYS_WRITEV, SYS_SOCKETPAIR, SYS_CLOCK_GETRES, SYS_CLOCK_NANOSLEEP,
     },
     fd::{
         sys_close, sys_dup, sys_dup3, sys_fcntl, sys_fstat, sys_fstatat, sys_ftruncate,
@@ -54,7 +54,7 @@ use self::{
         sys_getpid, sys_getppid, sys_getrusage, sys_gettid, sys_kill, sys_sched_yield,
         sys_set_tid_address, sys_setsid, sys_sigreturn, sys_tkill, sys_wait4,
     },
-    time::{sys_clock_gettime, sys_gettimeofday, sys_nanosleep, sys_setitimer, sys_times, sys_clock_getres},
+    time::{sys_clock_gettime, sys_gettimeofday, sys_nanosleep, sys_setitimer, sys_times, sys_clock_getres, sys_clock_nanosleep},
 };
 
 pub async fn syscall(call_type: usize, args: [usize; 7]) -> Result<usize, LinuxError> {
@@ -258,7 +258,15 @@ pub async fn syscall(call_type: usize, args: [usize; 7]) -> Result<usize, LinuxE
             sys_sched_setscheduler(args[0] as _, args[1] as _, args[2] as _).await
         }
         SYS_CLOCK_GETRES => sys_clock_getres(args[0] as _, args[1].into()).await,
-        115 => Ok(0),
+        SYS_CLOCK_NANOSLEEP => sys_clock_nanosleep(args[0] as _, args[1] as _, args[2].into(), args[3].into()).await,
+        122 => {
+            log::debug!("sys_getaffinity() ");
+            Ok(0)
+        }
+        120 => {
+            log::debug!("sys_sched_getscheduler");
+            Ok(0)
+        }
         _ => {
             warn!("unsupported syscall: {}", call_type);
             Err(LinuxError::EPERM)
