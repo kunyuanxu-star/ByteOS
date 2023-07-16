@@ -221,7 +221,7 @@ pub async fn initproc() {
     //     command(x).await;
     //     info!("No.{} finished!", i);
     // }
-    command("busybox echo run time-test").await;
+    // command("busybox echo run time-test").await;
     command("time-test").await;
     command("busybox echo run busybox_testcode.sh").await;
     command("busybox sh busybox_testcode.sh").await;
