@@ -161,7 +161,7 @@ impl UserTask {
             signal: SignalList::new(),
             signal_queue: [0; REAL_TIME_SIGNAL_NUM],
             exit_signal: 0,
-            thread_exit_code: Option::None
+            thread_exit_code: Option::None,
         });
 
         let task = Arc::new(Self {
@@ -512,7 +512,7 @@ impl UserTask {
             signal: SignalList::new(),
             signal_queue: [0; REAL_TIME_SIGNAL_NUM],
             exit_signal: 0,
-            thread_exit_code: Option::None
+            thread_exit_code: Option::None,
         });
 
         tcb.write().cx.set_ret(0);

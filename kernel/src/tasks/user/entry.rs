@@ -30,7 +30,8 @@ pub fn mask_signal_list(mask: SigProcMask, list: SignalList) -> SignalList {
 
 #[inline]
 pub fn check_thread_exit(task: &Arc<UserTask>) -> Option<usize> {
-    task.exit_code().or(task.tcb.read().thread_exit_code.map(|x| x as usize))
+    task.exit_code()
+        .or(task.tcb.read().thread_exit_code.map(|x| x as usize))
     // task.exit_code().is_some() || task.tcb.read().thread_exit_code.is_some()
 }
 

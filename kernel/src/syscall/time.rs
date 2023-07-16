@@ -5,8 +5,8 @@ use core::{
     task::{Context, Poll},
 };
 
-use arch::{get_time, time_to_usec, time_to_nsec};
-use executor::{current_task, current_user_task, select, AsyncTask, TMS, yield_now};
+use arch::{get_time, time_to_usec};
+use executor::{current_task, current_user_task, select, AsyncTask, TMS};
 use fs::TimeSpec;
 pub use hal::current_nsec;
 use hal::{ITimerVal, TimeVal};
@@ -124,10 +124,7 @@ pub async fn sys_clock_getres(
 ) -> Result<usize, LinuxError> {
     debug!("clock_getres @ {} {:#x?}", clock_id, times_ptr);
     if times_ptr.is_valid() {
-        *times_ptr.get_mut() = TimeSpec {
-            sec: 0,
-            nsec: 1,
-        };
+        *times_ptr.get_mut() = TimeSpec { sec: 0, nsec: 1 };
     }
     Ok(0)
     // sys_clock_gettime(clock_id, times_ptr).await
@@ -184,22 +181,19 @@ pub async fn sys_clock_nanosleep(
         req_ptr,
         rem_ptr
     );
-    let ns = time_to_nsec(get_time());
-    let req = req_ptr.get_mut();
-    let until = ns + req.sec * 1_000_000_000 + req.nsec;
-    debug!("nano sleep {} nseconds current {} until {}", req.sec * 1_000_000_000 + req.nsec, ns, until);
-    loop {
-        let t = time_to_nsec(get_time());
-        if t >= until {
-            break;
+
+    if flags == 1 {
+        let req = req_ptr.get_mut();
+        WaitUntilsec(req.sec * 1_000_000_000 + req.nsec).await;
+        if rem_ptr.is_valid() {
+            *rem_ptr.get_mut() = Default::default();
         }
-        yield_now().await;
+    } else {
+        let ns = current_nsec();
+        let req = req_ptr.get_mut();
+        debug!("nano sleep {} nseconds", req.sec * 1_000_000_000 + req.nsec);
+        WaitUntilsec(ns + req.sec * 1_000_000_000 + req.nsec).await;
     }
-    if rem_ptr.is_valid() {
-        *rem_ptr.get_mut() = TimeSpec {
-            sec: 0,
-            nsec: 0,
-        }
-    }
+
     Ok(0)
 }
