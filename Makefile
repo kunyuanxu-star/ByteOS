@@ -1,7 +1,7 @@
 NVME := off
 NET  := off
 ARCH := riscv64imac
-LOG  := info
+LOG  := debug
 BOARD:= qemu
 RELEASE := release
 KERNEL_ELF = target/$(ARCH)-unknown-none-elf/$(RELEASE)/kernel
