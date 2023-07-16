@@ -236,6 +236,10 @@ pub async fn initproc() {
     command("busybox echo run lua_testcode.sh").await;
     command("busybox sh lua_testcode.sh").await;
 
+    command("busybox echo run cyclic_testcode.sh").await;
+    command("busybox sh cyclictest_testcode.sh").await;
+    kill_all_tasks().await;
+
     command("libc-bench").await;
 
     command("busybox echo run netperf_testcode.sh").await;
@@ -243,10 +247,6 @@ pub async fn initproc() {
     
     command("busybox echo run iperf_testcode.sh").await;
     command("busybox sh iperf_testcode.sh").await;
-    kill_all_tasks().await;
-
-    command("busybox echo run cyclic_testcode.sh").await;
-    command("busybox sh cyclictest_testcode.sh").await;
     kill_all_tasks().await;
 
     command("busybox echo run iozone_testcode.sh").await;
