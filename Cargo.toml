@@ -23,7 +23,6 @@ members = [
     "modules/procfs",
     "modules/executor",
     "modules/signal",
-    "modules/k210-sdcard",
     "modules/kmacros",
     "modules/kmacros/impl",
 
