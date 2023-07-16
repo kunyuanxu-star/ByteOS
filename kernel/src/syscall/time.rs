@@ -117,6 +117,21 @@ pub fn wait_ms(ms: usize) -> WaitUntilsec {
     WaitUntilsec(current_nsec() + ms * 0x1000_0000)
 }
 
+#[inline]
+pub async fn sys_clock_getres(
+    clock_id: usize,
+    times_ptr: UserRef<TimeSpec>,
+) -> Result<usize, LinuxError> {
+    debug!("clock_getres @ {} {:#x?}", clock_id, times_ptr);
+    if times_ptr.is_valid() {
+        *times_ptr.get_mut() = TimeSpec {
+            sec: 0,
+            nsec: 1,
+        };
+    }
+    Ok(0)
+    // sys_clock_gettime(clock_id, times_ptr).await
+}
 pub async fn sys_setitimer(
     which: usize,
     times_ptr: UserRef<ITimerVal>,
