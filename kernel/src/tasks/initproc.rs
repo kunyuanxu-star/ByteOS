@@ -5,7 +5,7 @@ use alloc::{
     vec::Vec,
 };
 use arch::{console_getchar, console_putchar, switch_to_kernel_page_table};
-use executor::{current_task, yield_now, TASK_QUEUE};
+use executor::{current_task, yield_now, TASK_QUEUE, FUTURE_LIST};
 use frame_allocator::get_free_pages;
 use fs::{mount::open, File, FileType, OpenFlags};
 use log::debug;
@@ -53,10 +53,12 @@ async fn kill_all_tasks() {
         match x.clone().as_user_task() {
             Some(user_task) => {
                 user_task.exit(0);
+                FUTURE_LIST.lock().remove(&user_task.task_id);
             },
             None => {},
         }
-    })
+    });
+    TASK_QUEUE.lock().retain(|x| x.clone().as_user_task().is_none());
 }
 
 async fn run_libc_test() -> bool {
@@ -240,6 +242,10 @@ pub async fn initproc() {
     command("busybox sh iperf_testcode.sh").await;
     kill_all_tasks().await;
 
+    command("busybox echo run cyclic_testcode.sh").await;
+    command("busybox sh cyclictest_testcode.sh").await;
+    kill_all_tasks().await;
+
     command("busybox echo run iozone_testcode.sh").await;
     command("busybox sh iozone_testcode.sh").await;
 
@@ -249,9 +255,6 @@ pub async fn initproc() {
     command("busybox echo run unixbench_testcode.sh").await;
     command("busybox sh unixbench_testcode.sh").await;
 
-    command("busybox echo run cyclic_testcode.sh").await;
-    command("busybox sh cyclictest_testcode.sh").await;
-    kill_all_tasks().await;
     // command("./runtest.exe -w entry-static.exe pthread_cancel_points").await;
     // command("./runtest.exe -w entry-static.exe pthread_cancel").await;
     // command("./runtest.exe -w entry-static.exe pthread_condattr_setclock").await;
