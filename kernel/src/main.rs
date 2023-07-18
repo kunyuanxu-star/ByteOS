@@ -12,7 +12,7 @@ mod modules;
 mod syscall;
 mod tasks;
 
-use arch::{shutdown, Context, TrapType};
+use arch::{shutdown, Context, TrapType, reboot};
 use devices;
 use executor::get_current_task;
 use frame_allocator;

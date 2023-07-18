@@ -164,6 +164,79 @@ bit_struct! {
         xfer_cmpl: u1, // transfer_complete
         cmd_cmpl: u1,  // command_cmpl
     }
+
+    pub struct ClkCtl(u32) {
+        reserved27: u5,
+        sw_rst_dat: u1,
+        sw_rst_cmd: u1,
+        sw_rst_all: u1,
+        reserved20: u4,
+        tout_cnt: u4,
+        freq_sel: u8,
+        up_freq_sel: u2,
+        reserved4: u2,
+        pll_en: u1,
+        sd_clk_en: u1,
+        int_clk_stable: u1,
+        int_clk_en: u1,
+    }
+
+    pub struct AutoCmdErrAndHostCtl2(u32) {
+        present_val_enable: u1,
+        async_int_en: u1,
+        reserved_24: u6,
+        sample_clk_sel: u1,
+        execute_time: u1,
+        drv_sel: u2,
+        en_18_sig: u1,
+        uhs_mode_sel: u3,
+        reserved_8: u8,
+        cmd_not_issue_by_cmd12: u1,
+        reserved_5: u2,
+        auto_cmd_idx_err: u1,
+        auto_cmd_endbit_err: u1,
+        auto_cmd_crc_err: u1,
+        auto_cmd_tout_err: u1,
+        auto_cmd12_no_exe: u1,
+    }
+
+    pub struct Capabilities1(u32) {
+        slot_type: u2,
+        async_int_support: u1,
+        bus64_support: u1,
+        reserved_27: u1,
+        v18_support: u1,
+        v30_support: u1,
+        v33_support: u1,
+        susp_res_support: u1,
+        sdma_support: u1,
+        hs_support: u1,
+        reserved_20: u1,
+        adma2_support: u1,
+        embedded_8bit: u1,
+        max_blk_len: u2,
+        base_clk_freq: u8,
+        tout_clk_unit: u1,
+        reserved_6: u1,
+        tout_clk_freq: u6,
+    }
+
+    pub struct Capabilities2(u32) {
+        reserved_24: u8,
+        clk_multiplier: u8,
+        retune_mode: u2,
+        tune_sdr50: u1,
+        reserved_12: u1,
+        retune_timer: u4,
+        reserved_7: u1,
+        drv_d_support: u1,
+        drv_c_support: u1,
+        drv_a_support: u1,
+        reserved_3: u1,
+        ddr50_support: u1,
+        sdr104_support: u1,
+        sdr50_support: u1,
+    }
 }
 
 pub fn reg_transfer<T>(offset: usize) -> &'static mut T {
@@ -261,7 +334,7 @@ pub fn read() {
             norm_int_sts.xfer_cmpl().set(u1!(1));
             break;
         }
-        unsafe { wfi() };
+        // unsafe { wfi() };
     }
     hexdump(&data);
     println!("读取成功");
@@ -326,9 +399,79 @@ pub fn init() {
 
     if check_sd() {
         println!("sdcard exitsts");
+        // try to reset sdio
+        unsafe {
+            let reset_ptr = 0x0300_3000 as *mut u32;
+            // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
+            *reset_ptr |= 1 << 16;
+            for _ in 0..0x100_0000 {}
+        }
+        // get sd pll divider.
+        unsafe {
+            // open sd0 clock
+            let clk_en0 = 0x0300_2000 as *mut u32;
+            println!("all_status: {:#x}, clk_sd0_en: {}, clk_100k_sd0_en: {}", *clk_en0, (*clk_en0 >> 19) & 1, (*clk_en0 >> 20) & 1);
+            let div_clk_sd0 = (0x0300_2000 + 0x78) as *mut u32;
+            println!("div_clk_sd0: {:#x}", *div_clk_sd0);
+        }
+        // get sd support info
+        unsafe {
+            let supp = (SD_DRIVER_ADDR + 0x44) as *mut u8;
+            println!("support: {:#x}", *supp);
+            // let cap1 = reg_transfer::<Capabilities1>(0x40);
+            // let cap2 = reg_transfer::<Capabilities2>(0x44);
+            // println!("{:#x?}", cap1);
+            // println!("{:#x?}", cap2);
+        }
+        // try to get host mode
+        unsafe {
+            let host_ctl2 = reg_transfer::<AutoCmdErrAndHostCtl2>(0x3c);
+            host_ctl2.uhs_mode_sel().set(u3!(3));
+            println!("{:#x?}", *host_ctl2);
+        }
+        // try to change voltage
+        unsafe {
+            let sd_pwrsw_ctl_ptr = 0x0300_01F4 as *mut u32;
+            // bit 0 reg_en_pwrsw 1
+            // bit 1 reg_pwrsw_vsel 1 (1: 1.8v 0: 3.3v)
+            // bit 2 reg_pwrsw_disc 0
+            // bit 3 reg_pwrsw_auto 1
+            *sd_pwrsw_ctl_ptr = 0b1011;
+            for _ in 0..0x100_0000 {}
+        }
+        // try to shutdown sdio clock.
+        unsafe {
+            let present_state = reg_transfer::<PresentState>(0x24);
+            println!("present_state: {:#x?}", present_state);
+            if present_state.cmd_inhibit().get() == u1!(0) && present_state.dat_line_active().get() == u1!(0) {
+                println!("CLK_CTL[SD_CLK_EN]=0 Close sdio clock");
+                reg_transfer::<ClkCtl>(0x2c).sd_clk_en().set(u1!(0));
+            }
+            for _ in 0..0x100_0000 {}
+        }
+        // // try to set clock.
+        // unsafe {
+        //     let clk_ctl = reg_transfer::<ClkCtl>(0x2c);
+        //     println!("present_state: {:#x?}", clk_ctl);
+        //     clk_ctl.sd_clk_en().set(u1!(0));
+        //     // set clock freq, out = internal_clock_freq / (2 x freq_sel)
+        //     clk_ctl.freq_sel().set(1);
+        //     clk_ctl.int_clk_en().set(u1!(1));
+        //     println!("present_state: {:#x?}", clk_ctl);
+        //     loop {
+        //         println!("present_state: {:#x?}", clk_ctl);
+        //         if clk_ctl.int_clk_stable().get() == u1!(1) {
+        //             break;
+        //         }
+        //         for _ in 0..0x100_0000 {}
+        //     }
+        //     clk_ctl.sd_clk_en().set(u1!(1));
+        //     for _ in 0..0x100_0000 {}
+        // }
         read();
     }
-    loop {}
+    panic!("manual shutdown @ cv1811-sd");
+    // loop {}
     // let ec = EmmcCtrl::new(u1!(1));
     // println!("ec: {:#x?}  bits: {:#x}", ec, ec.raw());
 }

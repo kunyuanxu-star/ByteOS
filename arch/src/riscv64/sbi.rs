@@ -95,3 +95,14 @@ pub fn hart_suspend(suspend_type: u32, resume_addr: usize, opaque: usize) -> Sbi
         opaque,
     )
 }
+
+// https://github.com/riscv-non-isa/riscv-sbi-doc/blob/master/riscv-sbi.adoc
+pub fn reboot() {
+    unsafe {
+        asm!("ecall",
+        in("a7") 0x53525354, // EID
+        in("a6") 0, // FID
+        in("a0") 0,
+        in("a1") 0);
+    }
+}

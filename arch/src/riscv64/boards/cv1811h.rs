@@ -2,6 +2,7 @@ use riscv::register::sstatus;
 
 pub const CLOCK_FREQ: usize = 12500000;
 
+// 编译设备树 dtc -I dts -O dtb -o cv1811h-fdt.dtb cv1811h-fdt.dts
 static DEVICE_TREE: &[u8] = include_bytes!("cv1811h-fdt.dtb");
 
 pub fn init_device(hartid: usize, _device_tree: usize) -> (usize, usize) {
