@@ -24,6 +24,35 @@ const PAD_SDIO0_D1_REG: usize = PINMUX_BASE + 0x28;
 const PAD_SDIO0_D2_REG: usize = PINMUX_BASE + 0x2C;
 const PAD_SDIO0_D3_REG: usize = PINMUX_BASE + 0x30;
 
+const REG_SDIO0_PAD_MASK: u32 = 0xFFFFFFF3;
+const REG_SDIO0_PAD_SHIFT: usize = 2;
+const REG_SDIO0_PAD_CLR_MASK: u32 = 0xC;
+const REG_SDIO0_CD_PAD_REG: usize = PINMUX_BASE + 0x900;
+const REG_SDIO0_CD_PAD_VALUE: u32 = 1;
+const REG_SDIO0_CD_PAD_RESET: u32 = 1;
+const REG_SDIO0_PWR_EN_PAD_REG: usize = PINMUX_BASE + 0x904;
+const REG_SDIO0_PWR_EN_PAD_VALUE: u32 = 2;
+const REG_SDIO0_PWR_EN_PAD_RESET: u32 = 2;
+const REG_SDIO0_CLK_PAD_REG: usize = PINMUX_BASE + 0xA00;
+const REG_SDIO0_CLK_PAD_VALUE: u32 = 2;
+const REG_SDIO0_CLK_PAD_RESET: u32 = 2;
+const REG_SDIO0_CMD_PAD_REG: usize = PINMUX_BASE + 0xA04;
+const REG_SDIO0_CMD_PAD_VALUE: u32 = 1;
+const REG_SDIO0_CMD_PAD_RESET: u32 = 2;
+const REG_SDIO0_DAT0_PAD_REG: usize = PINMUX_BASE + 0xA08;
+const REG_SDIO0_DAT0_PAD_VALUE: u32 = 1;
+const REG_SDIO0_DAT0_PAD_RESET: u32 = 2;
+const REG_SDIO0_DAT1_PAD_REG: usize = PINMUX_BASE + 0xA0C;
+const REG_SDIO0_DAT1_PAD_VALUE: u32 = 1;
+const REG_SDIO0_DAT1_PAD_RESET: u32 = 2;
+const REG_SDIO0_DAT2_PAD_REG: usize = PINMUX_BASE + 0xA10;
+const REG_SDIO0_DAT2_PAD_VALUE: u32 = 1;
+const REG_SDIO0_DAT2_PAD_RESET: u32 = 2;
+const REG_SDIO0_DAT3_PAD_REG: usize = PINMUX_BASE + 0xA14;
+const REG_SDIO0_DAT3_PAD_VALUE: u32 = 1;
+const REG_SDIO0_DAT3_PAD_RESET: u32 = 2;
+
+
 bit_struct! {
     pub struct EmmcCtrl(u32) {
         emmc_func_en: u1,
@@ -340,6 +369,30 @@ pub fn read() {
     println!("读取成功");
 }
 
+pub fn mmio_clrsetbits_32(addr: *mut u32, clear: u32, set: u32) {
+    unsafe {
+        *addr = (*addr & !clear) | set;
+    }
+}
+
+pub fn mmio_clearbits_32(addr: *mut u32, clear: u32) {
+    unsafe {
+        *addr = *addr & !clear;
+    }
+}
+
+pub fn mmio_setbits_32(addr: *mut u32, set: u32) {
+    unsafe {
+        *addr = *addr| set;
+    }
+}
+
+pub fn mmio_write_32(addr: *mut u32, value: u32) {
+    unsafe {
+        *addr = value;
+    }
+}
+
 pub fn init() {
     // println!("read value");
     // let ec_value = unsafe { ((SD_DRIVER_ADDR + 0x28) as *const u32).read() };
@@ -399,13 +452,101 @@ pub fn init() {
 
     if check_sd() {
         println!("sdcard exitsts");
-        // try to reset sdio
+        // try to change voltage
+        // unsafe {
+        //     let sd_pwrsw_ctl_ptr = 0x0300_01F4 as *mut u32;
+        //     // bit 0 reg_en_pwrsw 1
+        //     // bit 1 reg_pwrsw_vsel 1 (1: 1.8v 0: 3.3v)
+        //     // bit 2 reg_pwrsw_disc 0
+        //     // bit 3 reg_pwrsw_auto 1
+        //     *sd_pwrsw_ctl_ptr = 0b1011;
+        //     for _ in 0..0x100_0000 {}
+        // }
+        // try to set pinmux
         unsafe {
-            let reset_ptr = 0x0300_3000 as *mut u32;
-            // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
-            *reset_ptr |= 1 << 16;
-            for _ in 0..0x100_0000 {}
+            let TOP_BASE: usize = 0x03000000;
+            let REG_TOP_SD_PWRSW_CTRL: usize = 0x1F4;
+            mmio_write_32((TOP_BASE + REG_TOP_SD_PWRSW_CTRL) as _, 0x9);
+
+            // let val: u8 = (bunplug) ? 0x3 : 0x0;
+            let reset = false;
+            let val = if reset {
+                0x3
+            } else {
+                0x0
+            };
+
+            mmio_write_32(PAD_SDIO0_CD_REG as _, 0x0);
+            mmio_write_32(PAD_SDIO0_PWR_EN_REG as _, 0x0);
+            mmio_write_32(PAD_SDIO0_CLK_REG as _, val as _);
+            mmio_write_32(PAD_SDIO0_CMD_REG as _, val as _);
+            mmio_write_32(PAD_SDIO0_D0_REG as _, val as _);
+            mmio_write_32(PAD_SDIO0_D1_REG as _, val as _);
+            mmio_write_32(PAD_SDIO0_D2_REG as _, val as _);
+            mmio_write_32(PAD_SDIO0_D3_REG as _, val as _);
+
+            if reset {
+                mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_PWR_EN_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+ 
+                mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CLK_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CMD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT1_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT0_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT2_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+        
+                mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT3_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+            } else {
+                mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_PWR_EN_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CLK_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_CMD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT1_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT0_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT2_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    
+                mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                            REG_SDIO0_DAT3_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+            }
+            // reset sdcard
+            mmio_clearbits_32((SD_DRIVER_ADDR + 0x2c) as *mut u32, (1 << 24) | (1 << 25) | (1 << 26));
+            // mmio_setbits_32(SD_DRIVER_ADDR + 0x3c, );
+            let host_pwr = reg_transfer::<HostCtl1PwrBgWup>(0x28);
+            println!("{:#x?}", host_pwr);
         }
+        // // try to reset sdio
+        // unsafe {
+        //     let reset_ptr = 0x0300_3000 as *mut u32;
+        //     // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
+        //     *reset_ptr |= 1 << 16;
+        //     for _ in 0..0x100_0000 {}
+        // }
         // get sd pll divider.
         unsafe {
             // open sd0 clock
@@ -416,28 +557,18 @@ pub fn init() {
         }
         // get sd support info
         unsafe {
-            let supp = (SD_DRIVER_ADDR + 0x44) as *mut u8;
-            println!("support: {:#x}", *supp);
-            // let cap1 = reg_transfer::<Capabilities1>(0x40);
-            // let cap2 = reg_transfer::<Capabilities2>(0x44);
-            // println!("{:#x?}", cap1);
-            // println!("{:#x?}", cap2);
+            // let supp = (SD_DRIVER_ADDR + 0x44) as *mut u8;
+            // println!("support: {:#x}", *supp);
+            let cap1 = reg_transfer::<Capabilities1>(0x40);
+            println!("{:#x?}", cap1);
+            let cap2 = reg_transfer::<Capabilities2>(0x44);
+            println!("{:#x?}", cap2);
         }
         // try to get host mode
         unsafe {
             let host_ctl2 = reg_transfer::<AutoCmdErrAndHostCtl2>(0x3c);
             host_ctl2.uhs_mode_sel().set(u3!(3));
             println!("{:#x?}", *host_ctl2);
-        }
-        // try to change voltage
-        unsafe {
-            let sd_pwrsw_ctl_ptr = 0x0300_01F4 as *mut u32;
-            // bit 0 reg_en_pwrsw 1
-            // bit 1 reg_pwrsw_vsel 1 (1: 1.8v 0: 3.3v)
-            // bit 2 reg_pwrsw_disc 0
-            // bit 3 reg_pwrsw_auto 1
-            *sd_pwrsw_ctl_ptr = 0b1011;
-            for _ in 0..0x100_0000 {}
         }
         // try to shutdown sdio clock.
         unsafe {
