@@ -67,6 +67,10 @@ build:
 run: fs-img build
 	$(QEMU_EXEC)
 
+run-sd: fs-img build
+	$(QEMU_EXEC) 
+
+
 justrun: build
 	$(QEMU_EXEC)
 
