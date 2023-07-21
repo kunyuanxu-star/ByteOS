@@ -334,6 +334,7 @@ pub fn read() {
         }
         // unsafe { wfi() };
     }
+    logging::println!("step1");
 
     let resp1_0 = reg_transfer::<u32>(0x10);
     let resp3_2 = reg_transfer::<u32>(0x14);
@@ -415,10 +416,18 @@ pub fn init() {
         // }
         // try to reset sd
         unsafe {
-            let reset_ptr = 0x0300_3000 as *mut u32;
-            // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
-            *reset_ptr |= 1 << 16;
-            for _ in 0..0x100_0000 {}
+            // let reset_ptr = 0x0300_3000 as *mut u32;
+            // // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
+            // *reset_ptr |= 1 << 16;
+            // for _ in 0..0x100_0000 {}
+
+            let cap1 = (SD_DRIVER_ADDR + 0x40) as *mut u32;
+            println!("cap1: {:#x}", *cap1);
+            let cap2 = (SD_DRIVER_ADDR + 0x44) as *mut u32;
+            println!("cap2: {:#x}", *cap2);
+            let SDHCI_HOST_VERSION = (SD_DRIVER_ADDR + 0xfc) as *mut u32;
+            println!("spec_ver: {:#x}", *SDHCI_HOST_VERSION);
+            
         }
         // try to set pinmux
         unsafe {
@@ -438,12 +447,6 @@ pub fn init() {
             // cvi_general_reset
             let SDHCI_HOST_CONTROL2 = (SD_DRIVER_ADDR + 0x3e) as *mut u16;
             println!("sdcard ctl2: {:#x}", *SDHCI_HOST_CONTROL2);
-            mmio_setbits_32((SD_DRIVER_ADDR + 0x200) as _, 1 << 1);
-            // mmio_clearbits_32((SD_DRIVER_ADDR + 0x200) as _, 1 << 1);
-            // mmio_setbits_32((SD_DRIVER_ADDR + 0x24c) as _, 1 << 0);
-            //reg_0x240[25:24] = 1 reg_0x240[22:16] = 0 reg_0x240[9:8] = 1 reg_0x240[6:0] = 0
-            // mmio_clrsetbits_32((SD_DRIVER_ADDR + 0x240) as _, (0b111_1111 << 16) | (0b111_1111 << 0), (3 << 8) | (3 << 24));
-            
 
             // let TOP_BASE: usize = 0x03000000;
             // let REG_TOP_SD_PWRSW_CTRL: usize = 0x1F4;
@@ -554,25 +557,25 @@ pub fn init() {
             }
             for _ in 0..0x100_0000 {}
         }
-        // // try to set clock.
-        // unsafe {
-        //     let clk_ctl = reg_transfer::<ClkCtl>(0x2c);
-        //     println!("present_state: {:#x?}", clk_ctl);
-        //     clk_ctl.sd_clk_en().set(u1!(0));
-        //     // set clock freq, out = internal_clock_freq / (2 x freq_sel)
-        //     clk_ctl.freq_sel().set(1);
-        //     clk_ctl.int_clk_en().set(u1!(1));
-        //     println!("present_state: {:#x?}", clk_ctl);
-        //     loop {
-        //         println!("present_state: {:#x?}", clk_ctl);
-        //         if clk_ctl.int_clk_stable().get() == u1!(1) {
-        //             break;
-        //         }
-        //         for _ in 0..0x100_0000 {}
-        //     }
-        //     clk_ctl.sd_clk_en().set(u1!(1));
-        //     for _ in 0..0x100_0000 {}
-        // }
+        // try to set clock.
+        unsafe {
+            let clk_ctl  = reg_transfer::<ClkCtl>(0x2c);
+            println!("present_state: {:#x?}", clk_ctl);
+            clk_ctl.sd_clk_en().set(u1!(0));
+            // set clock freq, out = internal_clock_freq / (2 x freq_sel)
+            clk_ctl.freq_sel().set(1);
+            clk_ctl.int_clk_en().set(u1!(1));
+            println!("present_state: {:#x?}", clk_ctl);
+            loop {
+                println!("present_state: {:#x?}", clk_ctl);
+                if clk_ctl.int_clk_stable().get() == u1!(1) {
+                    break;
+                }
+                for _ in 0..0x100_0000 {}
+            }
+            clk_ctl.sd_clk_en().set(u1!(1));
+            for _ in 0..0x100_0000 {}
+        }
         read();
     }
     panic!("manual shutdown @ cv1811-sd");
