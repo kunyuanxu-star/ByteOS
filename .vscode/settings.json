@@ -3,5 +3,10 @@
     "rust-analyzer.checkOnSave.extraArgs": [
         "--target",
         "riscv64gc-unknown-none-elf"
-    ]
+    ],
+    "files.associations": {
+        "memory": "c",
+        "random": "c",
+        "optional": "c"
+    }
 }

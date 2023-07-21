@@ -78,7 +78,7 @@ fn main(hart_id: usize, device_tree: usize) {
 
     // init cv1811 sdcard
     // this is a test function for developing
-    // cv1811_sd::init();
+    cv1811_sd::init();
 
     // // initialize filesystem
     // fs::init();
