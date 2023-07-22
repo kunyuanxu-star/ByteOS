@@ -319,24 +319,29 @@ pub fn read() {
     let xfer_mode = reg_transfer::<XferModeAndCmd>(0xc);
     xfer_mode.dma_enable().set(u1!(0));
     xfer_mode.blk_cnt_enable().set(u1!(0)); // just transfer 1 block
-    xfer_mode.auto_cmd_enable().set(u2!(0));
+
     xfer_mode.dat_xfer_dir().set(u1!(1)); // 1. read 0. write
     xfer_mode.multi_blk_sel().set(u1!(0)); // 0. single block   1. multi blocks
                                            // xfer_mode.cmd_idx().set(u6!(52));    // write command 52 for writing/reading.
-    xfer_mode.resp_err_chk_enable().set(u1!(1));
-    xfer_mode.data_present_sel().set(u1!(1));
 
+    xfer_mode.data_present_sel().set(u1!(1));
     xfer_mode.cmd_crc_chk_enable().set(u1!(1));
     xfer_mode.cmd_idx_chk_enable().set(u1!(1));
     xfer_mode.resp_type_sel().set(u2!(2));
-    xfer_mode.resp_type().set(u1!(1));
+
     xfer_mode.cmd_idx().set(u6!(17)); // 17: single read  18: multi read
                                       // 24: single write 25: multi write
 
     let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
     logging::println!("{:#x?}", norm_int_sts);
     
-    wait_for_cmd_done();
+    match wait_for_cmd_done() {
+        Ok(_) => {},
+        Err(_) => {
+            println!("time out");
+            return;
+        },
+    };
     logging::println!("step1");
 
     let resp1_0 = reg_transfer::<u32>(0x10);
@@ -376,7 +381,7 @@ pub fn read() {
         }
         if norm_int_sts.err_int().get() == true {
             norm_int_sts.err_int().set(true);
-            break;
+            return;
         }
         for _ in 0..1000{ unsafe { asm!("nop") }}
         // unsafe { wfi() };
@@ -418,7 +423,9 @@ pub fn mmio_read_32(addr: *mut u32) -> u32 {
 pub fn reset_config() {
     unsafe {
         // disable power
+        // NOTE: This will close the bus power, but i don't how to restart again.
         power_config(PowerLevel::Close);
+
         // reset
         mmio_clearbits_32((SD_DRIVER_ADDR + 0x2c) as *mut u32, (1 << 24) | (1 << 25) | (1 << 26));
         for _ in 0..0x100_0000 {asm!("nop")}
@@ -439,11 +446,11 @@ pub enum CmdError {
 pub fn wait_for_cmd_done() -> Result<(), CmdError> {
     let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
     loop {
-        // if norm_int_sts.err_int().get() == true {
-        //     println!("{:#x?}", norm_int_sts);
-        //     norm_int_sts.err_int().set(true);
-        //     break Err(CmdError::IntError);
-        // }
+        if norm_int_sts.err_int().get() == true {
+            println!("{:#x?}", norm_int_sts);
+            norm_int_sts.err_int().set(true);
+            break Err(CmdError::IntError);
+        }
         if norm_int_sts.cmd_cmpl().get() == true {
             println!("{:#x?}", norm_int_sts);
             norm_int_sts.cmd_cmpl().set(true);
@@ -471,6 +478,7 @@ pub fn cmd_transfer(cmd: u8, arg: u32) {
     let mut flags: u32 = (cmd as u32) << 24;
     const DATA_PRESENT: u32 = 1 << 21;
     const L48: u32 = 2 << 16;
+    const L48_BUSY: u32 = 2 << 16;
     const L136: u32 = 1 << 16;
     const CRC_CHECK_EN: u32 = 1 << 19;
     const INX_CHECK_EN: u32 = 1 << 20;
@@ -486,9 +494,18 @@ pub fn cmd_transfer(cmd: u8, arg: u32) {
         flags |= L48;
     } else if cmd == 41 {
         flags |= L48;
-    } else if cmd == 8 {
+    }  else if cmd == 7 {
         flags |= L48 | CRC_CHECK_EN | INX_CHECK_EN;
+    } else if cmd == 42 {
+        flags |= L48;
     }
+
+    flags |= match cmd {
+        42 | 8 | 51 =>  L48 | CRC_CHECK_EN | INX_CHECK_EN,       // R1
+        2 | 9 => L136 | CRC_CHECK_EN,                       // R2
+        3 => L48_BUSY | CRC_CHECK_EN | INX_CHECK_EN,        // R6
+        _ => 0
+    };
 
     // flags |= 0x10;
 
@@ -628,7 +645,8 @@ pub fn power_config(level: PowerLevel) {
             PowerLevel::Close => 0,
         };
         if level == PowerLevel::V18 {
-            *(0x030001F4 as *mut u8) = 0xb;
+            *(0x030001F4 as *mut u8) = 0xd;
+            mmio_setbits_32(REG_SDIO0_CLK_PAD_REG as _, (1 << 5) | (1 << 6) | (1 << 7));
         } else {
             *(0x030001F4 as *mut u8) = 0x9;
         }
@@ -639,11 +657,15 @@ pub fn power_config(level: PowerLevel) {
 pub fn init() {
     // Initialize sd card gpio
     if check_sd() {
+        pad_settings();
+
         println!("sdcard exitsts");
         reset_config();
         get_sd_caps();
+        power_config(PowerLevel::V33);
+
+        // mmio_write_32((SD_DRIVER_ADDR + 0x38) as _, 0);
         // config power
-        power_config(PowerLevel::V18);
 
         // // try to shutdown sdio clock.
         // unsafe {
@@ -661,7 +683,7 @@ pub fn init() {
             println!("present_state: {:#x?}", clk_ctl);
             clk_ctl.sd_clk_en().set(u1!(0));
             // set clock freq, out = internal_clock_freq / (2 x freq_sel)
-            clk_ctl.freq_sel().set(u8::MAX);
+            clk_ctl.freq_sel().set(4);
             clk_ctl.int_clk_en().set(u1!(1));
             println!("present_state: {:#x?}", clk_ctl);
             loop {
@@ -680,10 +702,25 @@ pub fn init() {
         blk_size_and_cnt.xfer_blk_size().set(u12!(0x200));
 
         cmd_transfer(0, 0);
-        cmd_transfer(8, (1 << 8)| 0xaa);
-        // cmd_transfer(1, 0x40FF8000);
+        cmd_transfer(8, 0x1aa);
+        let args = 0x4000_0000 | 0x0030_0000 | (0x1FF << 15);
+        loop {
+            cmd_transfer(55, 0);
+            cmd_transfer(41, args);
+
+            if *reg_transfer::<u32>(0x10) >> 31 == 1 {
+                break;
+            }
+            for _ in 0..0x1000_0000 { unsafe { asm!("nop") } }
+        }
+        cmd_transfer(2, 0);
+        cmd_transfer(3, 0);
+        let rsa = *reg_transfer::<u32>(0x10);
+        cmd_transfer(9, rsa & 0xffff0000);      // get scd reg
+        cmd_transfer(7, rsa & 0xffff0000);
+
         cmd_transfer(55, 0);
-        cmd_transfer(41, 0);
+        cmd_transfer(51, 0);
         // read();
     }
     panic!("manual shutdown @ cv1811-sd");
