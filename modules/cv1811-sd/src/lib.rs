@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(stdsimd)]
 use core::{
-    arch::riscv64::{fence_i, wfi},
+    arch::{riscv64::{fence_i, wfi}, asm},
     fmt::Debug,
 };
 
@@ -108,8 +108,8 @@ bit_struct! {
         reserved_4: u4,
         re_tune_req: u1,
         dat_line_active: u1,
-        cmd_inhibit_dat: u1,
-        cmd_inhibit: u1,
+        cmd_inhibit_dat: bool,
+        cmd_inhibit: bool,
     }
 
     pub struct SoftCpuRstn(u32) {
@@ -176,7 +176,7 @@ bit_struct! {
         cmd_endbit_err: u1,
         cmd_crc_err: u1,
         cmd_tout_err: u1,
-        err_int: u1,
+        err_int: bool,
         cqe_event: u1,
         reserved_13: u1,
         re_tune_event: u1,
@@ -186,12 +186,12 @@ bit_struct! {
         card_int: u1,
         card_remove_int: u1,
         card_insert_int: u1,
-        buf_rrdy: u1,  // Buffer Read Ready
+        buf_rrdy: bool,  // Buffer Read Ready
         buf_wrdy: u1,  // Buffer Write Ready
         dma_int: u1,
         bg_event: u1,
-        xfer_cmpl: u1, // transfer_complete
-        cmd_cmpl: u1,  // command_cmpl
+        xfer_cmpl: bool, // transfer_complete
+        cmd_cmpl: bool,  // command_cmpl
     }
 
     pub struct ClkCtl(u32) {
@@ -308,32 +308,35 @@ pub fn read() {
     println!("开始读取");
     let mut data = vec![0u8; 512];
 
+    // set blk size and blk count
     let blk_size_and_cnt = reg_transfer::<BlkSizeAndCnt>(0x4);
     blk_size_and_cnt.xfer_blk_size().set(u12!(0x200));
     blk_size_and_cnt.blk_cnt().set(1);
 
-    // todo: write cmd to  argument reg
-    let argument = reg_transfer::<u32>(0x8);
-    *argument = 0;
+    // todo: write cmd to argument reg
+    *reg_transfer::<u32>(0x8) = 0;
 
     let xfer_mode = reg_transfer::<XferModeAndCmd>(0xc);
     xfer_mode.dma_enable().set(u1!(0));
     xfer_mode.blk_cnt_enable().set(u1!(0)); // just transfer 1 block
+    xfer_mode.auto_cmd_enable().set(u2!(0));
     xfer_mode.dat_xfer_dir().set(u1!(1)); // 1. read 0. write
     xfer_mode.multi_blk_sel().set(u1!(0)); // 0. single block   1. multi blocks
                                            // xfer_mode.cmd_idx().set(u6!(52));    // write command 52 for writing/reading.
+    xfer_mode.resp_err_chk_enable().set(u1!(1));
+    xfer_mode.data_present_sel().set(u1!(1));
+
+    xfer_mode.cmd_crc_chk_enable().set(u1!(1));
+    xfer_mode.cmd_idx_chk_enable().set(u1!(1));
+    xfer_mode.resp_type_sel().set(u2!(2));
+    xfer_mode.resp_type().set(u1!(1));
     xfer_mode.cmd_idx().set(u6!(17)); // 17: single read  18: multi read
                                       // 24: single write 25: multi write
 
     let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
     logging::println!("{:#x?}", norm_int_sts);
-    loop {
-        if norm_int_sts.cmd_cmpl().get() == u1!(1) {
-            norm_int_sts.cmd_cmpl().set(u1!(1));
-            break;
-        }
-        // unsafe { wfi() };
-    }
+    
+    wait_for_cmd_done();
     logging::println!("step1");
 
     let resp1_0 = reg_transfer::<u32>(0x10);
@@ -346,24 +349,36 @@ pub fn read() {
         resp1_0, resp3_2, resp5_4, resp7_6
     );
 
-    loop {
-        if norm_int_sts.buf_rrdy().get() == u1!(0) {
-            norm_int_sts.buf_rrdy().set(u1!(1));
-            break;
-        }
-        unsafe { wfi() };
-    }
-
     for i in 0..512 {
+        loop {
+            println!("{:#x?}", norm_int_sts);
+            if norm_int_sts.buf_rrdy().get() == true {
+                println!("{:#x?}", norm_int_sts);
+                norm_int_sts.buf_rrdy().set(true);
+                break;
+            }
+            if norm_int_sts.err_int().get() == true {
+                println!("{:#x?}", norm_int_sts);
+                norm_int_sts.err_int().set(true);
+                break;
+            }
+            for _ in 0..1000{ unsafe { asm!("nop") }}
+        }
+        println!("time: {}", i);
         let buf_data_ptr = (SD_DRIVER_ADDR + 0x20) as *mut u32;
         data[i] = unsafe { buf_data_ptr.read_volatile() } as _;
     }
 
     loop {
-        if norm_int_sts.xfer_cmpl().get() == u1!(0) {
-            norm_int_sts.xfer_cmpl().set(u1!(1));
+        if norm_int_sts.xfer_cmpl().get() == true {
+            norm_int_sts.xfer_cmpl().set(true);
             break;
         }
+        if norm_int_sts.err_int().get() == true {
+            norm_int_sts.err_int().set(true);
+            break;
+        }
+        for _ in 0..1000{ unsafe { asm!("nop") }}
         // unsafe { wfi() };
     }
     hexdump(&data);
@@ -400,170 +415,253 @@ pub fn mmio_read_32(addr: *mut u32) -> u32 {
     }
 }
 
+pub fn reset_config() {
+    unsafe {
+        // disable power
+        power_config(PowerLevel::Close);
+        // reset
+        mmio_clearbits_32((SD_DRIVER_ADDR + 0x2c) as *mut u32, (1 << 24) | (1 << 25) | (1 << 26));
+        for _ in 0..0x100_0000 {asm!("nop")}
+        // enable power
+        power_config(PowerLevel::V33);
+
+        // high_speed and data width
+        mmio_setbits_32((SD_DRIVER_ADDR + 0x28) as _, (1 << 1) | (1 << 2));
+
+        *((SD_DRIVER_ADDR + 0x28) as *mut u8) |= 1 << 3;
+    }
+}
+
+pub enum CmdError {
+    IntError
+}
+
+pub fn wait_for_cmd_done() -> Result<(), CmdError> {
+    let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
+    loop {
+        // if norm_int_sts.err_int().get() == true {
+        //     println!("{:#x?}", norm_int_sts);
+        //     norm_int_sts.err_int().set(true);
+        //     break Err(CmdError::IntError);
+        // }
+        if norm_int_sts.cmd_cmpl().get() == true {
+            println!("{:#x?}", norm_int_sts);
+            norm_int_sts.cmd_cmpl().set(true);
+            break Ok(());
+        }
+        for _ in 0..1000{ unsafe { asm!("nop") }}
+    }
+}
+
+/*
+04310000: 00000001 00007200 00000000 113a0013  .....r........:.
+04310010: 00000900 00edc87f 32db7900 00400e00  .........y.2..@.
+04310020: 00004000 03f70000 00000f06 000e0107  .@..............
+04310030: 00000000 027f003b 00000000 30880000  ....;..........0
+04310040: 3f68c832 08006077 00000000 00000000  2.h?w`..........
+04310050: 00000000 00000000 82dc0d40 00000000  ........@.......
+04310060: 00030003 00030002 00010002 00020000  ................
+*/
+
+pub fn cmd_transfer(cmd: u8, arg: u32) {
+    let present_state = reg_transfer::<PresentState>(0x24);
+
+    while present_state.cmd_inhibit_dat().get() == true || present_state.cmd_inhibit_dat().get() == true { }
+
+    let mut flags: u32 = (cmd as u32) << 24;
+    const DATA_PRESENT: u32 = 1 << 21;
+    const L48: u32 = 2 << 16;
+    const L136: u32 = 1 << 16;
+    const CRC_CHECK_EN: u32 = 1 << 19;
+    const INX_CHECK_EN: u32 = 1 << 20;
+
+    if cmd == 17 {
+        flags |= DATA_PRESENT;
+    } else if cmd == 2 {
+        flags |= 0x8 << 16;
+        flags |= 1 << 4;
+        flags |= 1 << 6;
+        flags |= 0x1 << 16;
+    } else if cmd == 1 {
+        flags |= L48;
+    } else if cmd == 41 {
+        flags |= L48;
+    } else if cmd == 8 {
+        flags |= L48 | CRC_CHECK_EN | INX_CHECK_EN;
+    }
+
+    // flags |= 0x10;
+
+    unsafe {
+        // set blk cnt
+        *((SD_DRIVER_ADDR + 0x06) as *mut u8) = 0;
+        // set timeout time
+        *((SD_DRIVER_ADDR + 0x2e) as *mut u8) = 0xe;
+        *((SD_DRIVER_ADDR + 0x8) as *mut u32) = arg;
+        *((SD_DRIVER_ADDR + 0xc) as *mut u32) = flags;
+    }
+
+    match wait_for_cmd_done() {
+        Ok(_) => {},
+        Err(_) => {
+            println!("timeout");
+        },
+    };
+
+    let resp1_0 = reg_transfer::<u32>(0x10);
+    let resp3_2 = reg_transfer::<u32>(0x14);
+    let resp5_4 = reg_transfer::<u32>(0x18);
+    let resp7_6 = reg_transfer::<u32>(0x1c);
+
+    println!(
+        "resp: {:#x} {:#x} {:#x} {:#x}",
+        resp1_0, resp3_2, resp5_4, resp7_6
+    );
+}
+
+pub fn pad_settings() {
+    let TOP_BASE: usize = 0x03000000;
+    let REG_TOP_SD_PWRSW_CTRL: usize = 0x1F4;
+    mmio_write_32((TOP_BASE + REG_TOP_SD_PWRSW_CTRL) as _, 0x9);
+
+    // let val: u8 = (bunplug) ? 0x3 : 0x0;
+    let reset = false;
+    let val = if reset {
+        0x3
+    } else {
+        0x0
+    };
+
+    mmio_write_32(PAD_SDIO0_CD_REG as _, 0x0);
+    mmio_write_32(PAD_SDIO0_PWR_EN_REG as _, 0x0);
+    mmio_write_32(PAD_SDIO0_CLK_REG as _, val as _);
+    mmio_write_32(PAD_SDIO0_CMD_REG as _, val as _);
+    mmio_write_32(PAD_SDIO0_D0_REG as _, val as _);
+    mmio_write_32(PAD_SDIO0_D1_REG as _, val as _);
+    mmio_write_32(PAD_SDIO0_D2_REG as _, val as _);
+    mmio_write_32(PAD_SDIO0_D3_REG as _, val as _);
+
+    if reset {
+        mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+            REG_SDIO0_PWR_EN_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CLK_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CMD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT1_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT0_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT2_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT3_PAD_RESET << REG_SDIO0_PAD_SHIFT);
+    } else {
+        mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+            REG_SDIO0_PWR_EN_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CLK_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_CMD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT1_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT0_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT2_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+
+        mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
+                    REG_SDIO0_DAT3_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
+    }
+}
+
+/// get sdcard support info
+pub fn get_sd_caps() {
+    // let supp = (SD_DRIVER_ADDR + 0x44) as *mut u8;
+    // println!("support: {:#x}", *supp);
+    let cap1 = reg_transfer::<Capabilities1>(0x40);
+    println!("{:#x?}", cap1);
+    let cap2 = reg_transfer::<Capabilities2>(0x44);
+    println!("{:#x?}", cap2);
+    // power on
+    println!("{:#x?}", *reg_transfer::<HostCtl1PwrBgWup>(0x28))
+}
+
+#[derive(PartialEq)]
+pub enum PowerLevel {
+    V33,
+    V30,
+    V18,
+    Close
+}
+
+pub fn power_config(level: PowerLevel) {
+    const SD_BUS_VSEL_3V3_MASK: u8 = 0b111 << 1;
+    const SD_BUS_VSEL_3V0_MASK: u8 = 0b110 << 1;
+    const SD_BUS_VSEL_1V8_MASK: u8 = 0b101 << 1;
+    const SD_BUS_PWR_MASK: u8 = 1;
+
+    let pwr_ctl = (SD_DRIVER_ADDR + 0x29) as *mut u8;
+
+    unsafe {
+        *pwr_ctl = match level {
+            PowerLevel::V33 => SD_BUS_VSEL_3V3_MASK | SD_BUS_PWR_MASK,
+            PowerLevel::V30 => SD_BUS_VSEL_3V0_MASK | SD_BUS_PWR_MASK,
+            PowerLevel::V18 => SD_BUS_VSEL_1V8_MASK | SD_BUS_PWR_MASK,
+            PowerLevel::Close => 0,
+        };
+        if level == PowerLevel::V18 {
+            *(0x030001F4 as *mut u8) = 0xb;
+        } else {
+            *(0x030001F4 as *mut u8) = 0x9;
+        }
+        for _ in 0..0x100_0000 { asm!("nop") }
+    }
+}
+
 pub fn init() {
     // Initialize sd card gpio
     if check_sd() {
         println!("sdcard exitsts");
-        // try to change voltage
+        reset_config();
+        get_sd_caps();
+        // config power
+        power_config(PowerLevel::V18);
+
+        // // try to shutdown sdio clock.
         // unsafe {
-        //     let sd_pwrsw_ctl_ptr = 0x0300_01F4 as *mut u32;
-        //     // bit 0 reg_en_pwrsw 1
-        //     // bit 1 reg_pwrsw_vsel 1 (1: 1.8v 0: 3.3v)
-        //     // bit 2 reg_pwrsw_disc 0
-        //     // bit 3 reg_pwrsw_auto 1
-        //     *sd_pwrsw_ctl_ptr = 0b1011;
-        //     for _ in 0..0x100_0000 {}
+        //     let present_state = reg_transfer::<PresentState>(0x24);
+        //     println!("present_state: {:#x?}", present_state);
+        //     if present_state.cmd_inhibit().get() == u1!(0) && present_state.dat_line_active().get() == u1!(0) {
+        //         println!("CLK_CTL[SD_CLK_EN]=0 Close sdio clock");
+        //         reg_transfer::<ClkCtl>(0x2c).sd_clk_en().set(u1!(0));
+        //     }
+        //     for _ in 0..0x100_0000 { asm!("nop") }
         // }
-        // try to reset sd
-        unsafe {
-            // let reset_ptr = 0x0300_3000 as *mut u32;
-            // // bit 15, emmc_rst, bit 16, sdio0_rst, bit 17, sdio1_rst
-            // *reset_ptr |= 1 << 16;
-            // for _ in 0..0x100_0000 {}
-
-            let cap1 = (SD_DRIVER_ADDR + 0x40) as *mut u32;
-            println!("cap1: {:#x}", *cap1);
-            let cap2 = (SD_DRIVER_ADDR + 0x44) as *mut u32;
-            println!("cap2: {:#x}", *cap2);
-            let SDHCI_HOST_VERSION = (SD_DRIVER_ADDR + 0xfc) as *mut u32;
-            println!("spec_ver: {:#x}", *SDHCI_HOST_VERSION);
-            
-        }
-        // try to set pinmux
-        unsafe {
-            // sdhci_probe
-            // let SDHCI_HOST_VERSION = (SD_DRIVER_ADDR + 0xfe) as *mut u32;
-            // println!("spec_ver: {}, number: {}", *SDHCI_HOST_VERSION & 0xf, (*SDHCI_HOST_VERSION >> 8) & 0xf);
-            // sdhci_reset
-            // mmio_clearbits_32((SD_DRIVER_ADDR + 0x2c) as _, 1 << 24);
-            let rst = (SD_DRIVER_ADDR + 0x2f) as *mut u8;
-            loop {
-                if *rst & 0x1 == 0x0 {
-                    break;
-                }
-                for _ in 0..0x100_0000 {}
-            }
-
-            // cvi_general_reset
-            let SDHCI_HOST_CONTROL2 = (SD_DRIVER_ADDR + 0x3e) as *mut u16;
-            println!("sdcard ctl2: {:#x}", *SDHCI_HOST_CONTROL2);
-
-            // let TOP_BASE: usize = 0x03000000;
-            // let REG_TOP_SD_PWRSW_CTRL: usize = 0x1F4;
-            // mmio_write_32((TOP_BASE + REG_TOP_SD_PWRSW_CTRL) as _, 0x9);
-
-            // // let val: u8 = (bunplug) ? 0x3 : 0x0;
-            // let reset = false;
-            // let val = if reset {
-            //     0x3
-            // } else {
-            //     0x0
-            // };
-
-            // mmio_write_32(PAD_SDIO0_CD_REG as _, 0x0);
-            // mmio_write_32(PAD_SDIO0_PWR_EN_REG as _, 0x0);
-            // mmio_write_32(PAD_SDIO0_CLK_REG as _, val as _);
-            // mmio_write_32(PAD_SDIO0_CMD_REG as _, val as _);
-            // mmio_write_32(PAD_SDIO0_D0_REG as _, val as _);
-            // mmio_write_32(PAD_SDIO0_D1_REG as _, val as _);
-            // mmio_write_32(PAD_SDIO0_D2_REG as _, val as _);
-            // mmio_write_32(PAD_SDIO0_D3_REG as _, val as _);
-
-            // if reset {
-            //     mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //         REG_SDIO0_PWR_EN_PAD_RESET << REG_SDIO0_PAD_SHIFT);
- 
-            //     mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CLK_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CMD_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT1_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT0_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT2_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-        
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT3_PAD_RESET << REG_SDIO0_PAD_SHIFT);
-            // } else {
-            //     mmio_clrsetbits_32(REG_SDIO0_PWR_EN_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //         REG_SDIO0_PWR_EN_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_CD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_CLK_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CLK_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_CMD_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_CMD_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT1_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT1_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT0_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT0_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT2_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT2_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-    
-            //     mmio_clrsetbits_32(REG_SDIO0_DAT3_PAD_REG as _, REG_SDIO0_PAD_CLR_MASK,
-            //                 REG_SDIO0_DAT3_PAD_VALUE << REG_SDIO0_PAD_SHIFT);
-            // }
-            // // reset sdcard
-            // mmio_clearbits_32((SD_DRIVER_ADDR + 0x2c) as *mut u32, (1 << 24) | (1 << 25) | (1 << 26));
-            // mmio_setbits_32(SD_DRIVER_ADDR + 0x3c, );
-            let host_pwr = reg_transfer::<HostCtl1PwrBgWup>(0x28);
-            println!("{:#x?}", host_pwr);
-        }
-        // get sd pll divider.
-        unsafe {
-            // open sd0 clock
-            let clk_en0 = 0x0300_2000 as *mut u32;
-            println!("all_status: {:#x}, clk_sd0_en: {}, clk_100k_sd0_en: {}", *clk_en0, (*clk_en0 >> 19) & 1, (*clk_en0 >> 20) & 1);
-            let div_clk_sd0 = (0x0300_2000 + 0x78) as *mut u32;
-            println!("div_clk_sd0: {:#x}", *div_clk_sd0);
-        }
-        // get sd support info
-        unsafe {
-            // let supp = (SD_DRIVER_ADDR + 0x44) as *mut u8;
-            // println!("support: {:#x}", *supp);
-            let cap1 = reg_transfer::<Capabilities1>(0x40);
-            println!("{:#x?}", cap1);
-            let cap2 = reg_transfer::<Capabilities2>(0x44);
-            println!("{:#x?}", cap2);
-        }
-        // try to get host mode
-        unsafe {
-            let host_ctl2 = reg_transfer::<AutoCmdErrAndHostCtl2>(0x3c);
-            host_ctl2.uhs_mode_sel().set(u3!(3));
-            println!("{:#x?}", *host_ctl2);
-        }
-        // try to shutdown sdio clock.
-        unsafe {
-            let present_state = reg_transfer::<PresentState>(0x24);
-            println!("present_state: {:#x?}", present_state);
-            if present_state.cmd_inhibit().get() == u1!(0) && present_state.dat_line_active().get() == u1!(0) {
-                println!("CLK_CTL[SD_CLK_EN]=0 Close sdio clock");
-                reg_transfer::<ClkCtl>(0x2c).sd_clk_en().set(u1!(0));
-            }
-            for _ in 0..0x100_0000 {}
-        }
         // try to set clock.
         unsafe {
             let clk_ctl  = reg_transfer::<ClkCtl>(0x2c);
             println!("present_state: {:#x?}", clk_ctl);
             clk_ctl.sd_clk_en().set(u1!(0));
             // set clock freq, out = internal_clock_freq / (2 x freq_sel)
-            clk_ctl.freq_sel().set(1);
+            clk_ctl.freq_sel().set(u8::MAX);
             clk_ctl.int_clk_en().set(u1!(1));
             println!("present_state: {:#x?}", clk_ctl);
             loop {
@@ -571,12 +669,22 @@ pub fn init() {
                 if clk_ctl.int_clk_stable().get() == u1!(1) {
                     break;
                 }
-                for _ in 0..0x100_0000 {}
+                for _ in 0..0x100_0000 { asm!("nop") }
             }
             clk_ctl.sd_clk_en().set(u1!(1));
-            for _ in 0..0x100_0000 {}
+            for _ in 0..0x100_0000 { asm!("nop") }
         }
-        read();
+        // try to set blk size
+        let blk_size_and_cnt = reg_transfer::<BlkSizeAndCnt>(0x4);
+        println!("{:#x?}", *blk_size_and_cnt);
+        blk_size_and_cnt.xfer_blk_size().set(u12!(0x200));
+
+        cmd_transfer(0, 0);
+        cmd_transfer(8, (1 << 8)| 0xaa);
+        // cmd_transfer(1, 0x40FF8000);
+        cmd_transfer(55, 0);
+        cmd_transfer(41, 0);
+        // read();
     }
     panic!("manual shutdown @ cv1811-sd");
     // loop {}
