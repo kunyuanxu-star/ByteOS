@@ -2,10 +2,11 @@
 #![feature(stdsimd)]
 use core::{
     arch::{riscv64::{fence_i, wfi}, asm},
-    fmt::Debug,
+    fmt::Debug, ptr::slice_from_raw_parts_mut,
 };
 
 use bit_struct::*;
+use frame_allocator::frame_alloc;
 use logging::{print, println};
 
 #[macro_use]
@@ -145,9 +146,9 @@ bit_struct! {
         reserved_30: u2,
         cmd_idx: u6,
         cmd_type: u2,
-        data_present_sel: u1,
-        cmd_idx_chk_enable: u1,
-        cmd_crc_chk_enable: u1,
+        data_present_sel: bool,
+        cmd_idx_chk_enable: bool,
+        cmd_crc_chk_enable: bool,
         sub_cmd_flag: u1,
         resp_type_sel: u2,
         reserved_9: u7,
@@ -157,8 +158,8 @@ bit_struct! {
         multi_blk_sel: u1,
         dat_xfer_dir: u1,
         auto_cmd_enable: u2,
-        blk_cnt_enable: u1,
-        dma_enable: u1,
+        blk_cnt_enable: bool,
+        dma_enable: bool,
     }
 
     pub struct NormAndErrIntSts(u32) {
@@ -188,7 +189,7 @@ bit_struct! {
         card_insert_int: u1,
         buf_rrdy: bool,  // Buffer Read Ready
         buf_wrdy: u1,  // Buffer Write Ready
-        dma_int: u1,
+        dma_int: bool,
         bg_event: u1,
         xfer_cmpl: bool, // transfer_complete
         cmd_cmpl: bool,  // command_cmpl
@@ -317,16 +318,16 @@ pub fn read() {
     *reg_transfer::<u32>(0x8) = 0;
 
     let xfer_mode = reg_transfer::<XferModeAndCmd>(0xc);
-    xfer_mode.dma_enable().set(u1!(0));
-    xfer_mode.blk_cnt_enable().set(u1!(0)); // just transfer 1 block
+    xfer_mode.dma_enable().set(false);
+    xfer_mode.blk_cnt_enable().set(false); // just transfer 1 block
 
     xfer_mode.dat_xfer_dir().set(u1!(1)); // 1. read 0. write
     xfer_mode.multi_blk_sel().set(u1!(0)); // 0. single block   1. multi blocks
                                            // xfer_mode.cmd_idx().set(u6!(52));    // write command 52 for writing/reading.
 
-    xfer_mode.data_present_sel().set(u1!(1));
-    xfer_mode.cmd_crc_chk_enable().set(u1!(1));
-    xfer_mode.cmd_idx_chk_enable().set(u1!(1));
+    xfer_mode.data_present_sel().set(true);
+    xfer_mode.cmd_crc_chk_enable().set(true);
+    xfer_mode.cmd_idx_chk_enable().set(true);
     xfer_mode.resp_type_sel().set(u2!(2));
 
     xfer_mode.cmd_idx().set(u6!(17)); // 17: single read  18: multi read
@@ -534,6 +535,75 @@ pub fn cmd_transfer(cmd: u8, arg: u32) {
         "resp: {:#x} {:#x} {:#x} {:#x}",
         resp1_0, resp3_2, resp5_4, resp7_6
     );
+}
+
+pub fn dma_read() {
+    let ppn = frame_alloc().expect("can't alloc memory");
+    mmio_write_32((SD_DRIVER_ADDR + 0x0) as _, ppn.0.to_addr() as _);
+
+    // set blk size and blk count
+    let blk_size_and_cnt = reg_transfer::<BlkSizeAndCnt>(0x4);
+    blk_size_and_cnt.xfer_blk_size().set(u12!(0x200));
+    blk_size_and_cnt.blk_cnt().set(1);
+
+    // todo: write cmd to argument reg
+    *reg_transfer::<u32>(0x8) = 0;
+
+    let xfer_mode = reg_transfer::<XferModeAndCmd>(0xc);
+    xfer_mode.dma_enable().set(true);
+    xfer_mode.blk_cnt_enable().set(true); // just transfer 1 block
+
+    xfer_mode.dat_xfer_dir().set(u1!(1)); // 1. read 0. write
+    xfer_mode.multi_blk_sel().set(u1!(0)); // 0. single block   1. multi blocks
+                                            // xfer_mode.cmd_idx().set(u6!(52));    // write command 52 for writing/reading.
+
+    xfer_mode.data_present_sel().set(true);
+    xfer_mode.cmd_crc_chk_enable().set(true);
+    xfer_mode.cmd_idx_chk_enable().set(true);
+    xfer_mode.resp_type_sel().set(u2!(2));
+
+    xfer_mode.cmd_idx().set(u6!(17)); // 17: single read  18: multi read
+                                        // 24: single write 25: multi write
+
+    match wait_for_cmd_done() {
+        Ok(_) => {},
+        Err(_) => {
+            println!("time out for dma read");
+        },
+    }
+
+    let resp1_0 = reg_transfer::<u32>(0x10);
+    let resp3_2 = reg_transfer::<u32>(0x14);
+    let resp5_4 = reg_transfer::<u32>(0x18);
+    let resp7_6 = reg_transfer::<u32>(0x1c);
+
+    println!(
+        "resp: {:#x} {:#x} {:#x} {:#x}",
+        resp1_0, resp3_2, resp5_4, resp7_6
+    );
+
+
+    let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
+    logging::println!("{:#x?}", norm_int_sts);
+
+    loop {
+        if norm_int_sts.xfer_cmpl().get() {
+            println!("transfer done");
+            break;
+        }
+        if norm_int_sts.dma_int().get() {
+            norm_int_sts.dma_int().set(true);
+            println!("transfer done");
+            break;
+        }
+    }
+
+    norm_int_sts.xfer_cmpl().set(true);
+    norm_int_sts.dma_int().set(true);
+
+    hexdump(unsafe {
+        core::slice::from_raw_parts_mut((ppn.0.to_addr() | 0xffff_ffc0_0000_0000) as *mut u8, 4096)
+    });
 }
 
 pub fn pad_settings() {
