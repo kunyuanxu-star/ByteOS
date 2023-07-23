@@ -8,6 +8,7 @@ extern crate log;
 #[macro_use]
 extern crate alloc;
 
+pub mod cvsd;
 pub mod device;
 pub mod memory;
 #[cfg(feature = "nvme")]
@@ -47,6 +48,7 @@ pub fn get_blk_devices() -> Vec<Arc<dyn BlkDriver>> {
 pub fn init_drivers() {
     virtio::driver_init();
     rtc::driver_init();
+    cvsd::driver_init();
 }
 
 pub fn init_device(device_tree: usize) {
@@ -90,7 +92,7 @@ pub fn prepare_devices() {
             if let Some(f) = driver_manager.get(compatible.first()) {
                 f(&child);
             }
-            // info!("    {}  {}", child.name, compatible.first());
+            info!("    {}  {}", child.name, compatible.first());
         }
     }
 

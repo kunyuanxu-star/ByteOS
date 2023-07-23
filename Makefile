@@ -73,7 +73,8 @@ justrun: build
 
 cv1811h-build: build
 	rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary $(BIN_FILE)
-	scp -r $(BIN_FILE) root@10.0.0.1:/tmpfs/
+	sudo ./cv1811h-burn.sh
+
 k210-build: build
 	rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary $(BIN_FILE)
 	@cp $(SBI) $(SBI).copy

@@ -9,41 +9,41 @@ rustflags = [
     "-Cforce-frame-pointers=yes"
 ]
 
-[source.crates-io]
-replace-with = "vendored-sources"
+# [source.crates-io]
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/DeathWish5/kernel-sync?rev=8486b8"]
-git = "https://github.com/DeathWish5/kernel-sync"
-rev = "8486b8"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/DeathWish5/kernel-sync?rev=8486b8"]
+# git = "https://github.com/DeathWish5/kernel-sync"
+# rev = "8486b8"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/rcore-os/nvme_driver?rev=8ae0572"]
-git = "https://github.com/rcore-os/nvme_driver"
-rev = "8ae0572"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/rcore-os/nvme_driver?rev=8ae0572"]
+# git = "https://github.com/rcore-os/nvme_driver"
+# rev = "8ae0572"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/rcore-os/riscv"]
-git = "https://github.com/rcore-os/riscv"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/rcore-os/riscv"]
+# git = "https://github.com/rcore-os/riscv"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/rcore-os/virtio-drivers?rev=f1d1cbb"]
-git = "https://github.com/rcore-os/virtio-drivers"
-rev = "f1d1cbb"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/rcore-os/virtio-drivers?rev=f1d1cbb"]
+# git = "https://github.com/rcore-os/virtio-drivers"
+# rev = "f1d1cbb"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/rust-embedded/riscv?rev=cd31989ba1"]
-git = "https://github.com/rust-embedded/riscv"
-rev = "cd31989ba1"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/rust-embedded/riscv?rev=cd31989ba1"]
+# git = "https://github.com/rust-embedded/riscv"
+# rev = "cd31989ba1"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/yfblock/lose-net-stack?rev=de965fe"]
-git = "https://github.com/yfblock/lose-net-stack"
-rev = "de965fe"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/yfblock/lose-net-stack?rev=de965fe"]
+# git = "https://github.com/yfblock/lose-net-stack"
+# rev = "de965fe"
+# replace-with = "vendored-sources"
 
-[source."git+https://github.com/yfblock/rust-fatfs.git"]
-git = "https://github.com/yfblock/rust-fatfs.git"
-replace-with = "vendored-sources"
+# [source."git+https://github.com/yfblock/rust-fatfs.git"]
+# git = "https://github.com/yfblock/rust-fatfs.git"
+# replace-with = "vendored-sources"
 
-[source.vendored-sources]
-directory = "vendor"
+# [source.vendored-sources]
+# directory = "vendor"

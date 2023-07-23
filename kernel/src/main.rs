@@ -17,6 +17,7 @@ mod syscall;
 mod task_cache;
 mod tasks;
 
+use arch::console_putchar;
 use devices;
 use frame_allocator;
 use hal;

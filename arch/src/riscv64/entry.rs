@@ -22,11 +22,11 @@ static mut PAGE_TABLE: [PTE; PAGE_ITEM_COUNT] = {
         0x8000_0000,
         PTEFlags::VRWX.union(PTEFlags::D).union(PTEFlags::A),
     );
-    arr[0x100] = PTE::from_addr(0x0000_0000, PTEFlags::GVRWX);
-    arr[0x101] = PTE::from_addr(0x4000_0000, PTEFlags::GVRWX);
+    arr[0x100] = PTE::from_addr(0x0000_0000, PTEFlags::ADGVRWX);
+    arr[0x101] = PTE::from_addr(0x4000_0000, PTEFlags::ADGVRWX);
     arr[0x102] = PTE::from_addr(
         0x8000_0000,
-        PTEFlags::GVRWX.union(PTEFlags::D).union(PTEFlags::A),
+        PTEFlags::ADGVRWX,
     );
     arr
 };
