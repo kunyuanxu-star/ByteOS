@@ -134,6 +134,7 @@ dependencies = [
  "bit-struct",
  "devices",
  "frame_allocator",
+ "log",
  "logging",
 ]
 

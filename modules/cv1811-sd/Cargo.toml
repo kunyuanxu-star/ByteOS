@@ -9,4 +9,5 @@ edition = "2021"
 devices = { path = "../devices" }
 bit-struct = "0.3.2"
 logging = { path = "../logging" }
+log = "0.4"
 frame_allocator = { path = "../frame_allocator" }
