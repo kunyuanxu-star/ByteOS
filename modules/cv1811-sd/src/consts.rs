@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use bit_struct::*;
 
 pub const TOP_BASE: usize = 0x03000000;
