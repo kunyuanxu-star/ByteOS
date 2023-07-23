@@ -21,7 +21,11 @@ impl PTE {
         // TIPS: This is prepare for the extend bits of T-HEAD C906
         #[cfg(feature = "board-cv1811h")]
         if flags.contains(PTEFlags::G) {
-            Self(ppn << 10 | flags.bits() as usize | 7 << 60)
+            if ppn == 0 {
+                Self(ppn << 10 | flags.bits() as usize | (1 << 63) | (1 << 60))
+            } else {
+                Self(ppn << 10 | flags.bits() as usize | 7 << 60)
+            }
         } else {
             Self(ppn << 10 | flags.bits() as usize)
         }

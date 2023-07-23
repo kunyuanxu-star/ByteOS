@@ -463,7 +463,6 @@ pub fn init() -> Result<(), CmdError> {
 
         power_config(PowerLevel::V18);
         set_clock(4);
-
         // sdcard initialize.
         cmd_transfer(CommandType::CMD(0), 0, 0)?;
         cmd_transfer(CommandType::CMD(8), 0x1aa, 0)?;

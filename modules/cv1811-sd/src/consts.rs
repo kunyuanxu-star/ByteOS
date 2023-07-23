@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 use bit_struct::*;
 
-pub const TOP_BASE: usize = 0x03000000;
-pub const SD_DRIVER_ADDR: usize = 0x0431_0000;
-pub const SOFT_REST_BASE_ADDR: usize = 0x0300_3000;
-pub const PINMUX_BASE: usize = 0x0300_1000;
+pub const TOP_BASE: usize = 0xffff_ffc0_0300_0000;
+pub const SD_DRIVER_ADDR: usize = 0xffff_ffc0_0431_0000;
+pub const SOFT_REST_BASE_ADDR: usize = 0xffff_ffc0_0300_3000;
+pub const PINMUX_BASE: usize = 0xffff_ffc0_0300_1000;
 
 pub const REG_TOP_SD_PWRSW_CTRL: usize = 0x1F4;
 pub const PAD_SDIO0_CD_REG: usize = PINMUX_BASE + 0x34;
