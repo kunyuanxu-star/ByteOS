@@ -31,6 +31,19 @@ pub fn read_block(block_id: u32, data: &mut [u8]) -> Result<(), CmdError> {
     res
 }
 
+/// write a block to the sdcard.
+pub fn write_block(block_id: u32, data: &[u8]) -> Result<(), CmdError> {
+    cmd_transfer(CommandType::CMD(24), block_id, 1)?;
+    // read_buff(data)?;
+    write_buff(data)?;
+    let res = wait_for_xfer_done();
+    mmio_write_32(
+        (SD_DRIVER_ADDR + 0x30) as _,
+        mmio_read_32((SD_DRIVER_ADDR + 0x30) as _),
+    );
+    res
+}
+
 pub fn reset_config() {
     unsafe {
         // disable power
@@ -60,10 +73,12 @@ pub fn wait_for_cmd_done() -> Result<(), CmdError> {
     let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
     loop {
         if norm_int_sts.err_int().get() == true {
+            log::debug!("{:#x?}", norm_int_sts);
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
             break Err(CmdError::IntError);
         }
         if norm_int_sts.cmd_cmpl().get() == true {
+            log::debug!("{:#x?}", norm_int_sts);
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 0);
             break Ok(());
         }
@@ -117,6 +132,7 @@ pub fn cmd_transfer(cmd: CommandType, arg: u32, blk_cnt: u32) -> Result<(), CmdE
 
     flags |= match cmd {
         CommandType::CMD(17) => DATA_PRESENT | XFER_READ,
+        CommandType::CMD(24) => DATA_PRESENT,
         CommandType::ACMD(51) => DATA_PRESENT | XFER_READ,
         _ => 0,
     };
@@ -127,6 +143,7 @@ pub fn cmd_transfer(cmd: CommandType, arg: u32, blk_cnt: u32) -> Result<(), CmdE
         | CommandType::ACMD(42)
         | CommandType::ACMD(51)
         | CommandType::CMD(17)
+        | CommandType::CMD(24)
         | CommandType::CMD(8)
         | CommandType::CMD(16)
         | CommandType::CMD(7) => L48 | CRC_CHECK_EN | INX_CHECK_EN,
@@ -455,6 +472,35 @@ pub fn read_buff(data: &mut [u8]) -> Result<(), CmdError> {
     Ok(())
 }
 
+pub fn write_buff(data: &[u8]) -> Result<(), CmdError> {
+    assert!(data.len() == 0x200);
+    let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
+
+    loop {
+        if norm_int_sts.buf_wrdy().get() == true {
+            mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 5);
+            break;
+        }
+        if norm_int_sts.err_int().get() == true {
+            mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
+            return Err(CmdError::IntError);
+        }
+        for _ in 0..1000 {
+            unsafe { asm!("nop") }
+        }
+    }
+
+    unsafe {
+        core::slice::from_raw_parts_mut(data.as_ptr() as *mut u32, 0x200 / 4)
+            .iter_mut()
+            .for_each(|x| {
+                mmio_write_32((SD_DRIVER_ADDR + 0x20) as _, *x);
+                asm!("nop");
+            });
+    }
+    Ok(())
+}
+
 pub fn init() -> Result<(), CmdError> {
     // Initialize sd card gpio
     if check_sd() {
@@ -509,9 +555,17 @@ pub fn init() -> Result<(), CmdError> {
 }
 
 pub fn tests() {
+    let mut data = vec![0u8; 512];
+
+    for i in 0..512 {
+        data[i] = (i % 512) as u8;
+    }
+
+    log::debug!("start to test write block");
+    write_block(0, &data).expect("can't write block in tests");
+
     log::debug!("start to test read block");
     // test for read
-    let mut data = vec![0u8; 512];
 
     for i in 0..2 {
         read_block(i, &mut data).expect("can't read block in tests");
