@@ -202,10 +202,15 @@ pub fn init() {
 }
 
 pub async fn add_user_task(filename: &str, args: Vec<&str>, _envp: Vec<&str>) -> TaskId {
+    let curr_task = current_task();
     let task = UserTask::new(user_entry(), Arc::downgrade(&current_task()));
+    
+    task.before_run();
     exec_with_process(task.clone(), filename, args)
         .await
         .expect("can't add task to excutor");
     thread::spawn(task.clone());
+    curr_task.before_run();
+
     task.get_task_id()
 }

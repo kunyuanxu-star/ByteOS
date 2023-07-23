@@ -121,7 +121,7 @@ fn kernel_callback(context: &mut Context) -> usize {
 pub fn trap_pre_handle(context: &mut Context) -> TrapType {
     let scause = scause::read();
     let stval = stval::read();
-    warn!(
+    trace!(
         "用户态中断发生: {:#x} {:?}  stval {:#x}  sepc: {:#x}",
         scause.bits(),
         scause.cause(),

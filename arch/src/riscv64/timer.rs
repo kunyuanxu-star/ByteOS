@@ -38,8 +38,8 @@ pub fn set_next_timeout() {
 
 pub fn init() {
     unsafe {
-        sie::set_stimer();
-        sstatus::set_sie();
+        // sie::set_stimer();
+        // sstatus::set_sie();
     }
     set_next_timeout();
     info!("initialize timer interrupt");

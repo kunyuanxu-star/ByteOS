@@ -117,6 +117,9 @@ pub async fn exec_with_process<'a>(
     let file_size = file.metadata().unwrap().size;
     let frame_ppn = frame_alloc_much(ceil_div(file_size, PAGE_SIZE));
     let buffer = PhysAddr::from(frame_ppn.as_ref().unwrap()[0].0).slice_mut_with_len(file_size);
+    if path.contains("time-test") {
+        buffer.copy_from_slice(include_bytes!("../../../tools/testcase-final2023/time-test"))
+    };
     let rsize = file.read(buffer).map_err(from_vfs)?;
 
     assert_eq!(rsize, file_size);
@@ -209,15 +212,20 @@ pub async fn exec_with_process<'a>(
                 page_count,
             );
 
+            // let page_space = unsafe {
+            //     core::slice::from_raw_parts_mut(
+            //         (ppn_c(ppn_start).to_addr() + virt_addr % PAGE_SIZE) as _,
+            //         file_size,
+            //     )
+            // };
             let page_space = unsafe {
                 core::slice::from_raw_parts_mut(
-                    (ppn_c(ppn_start).to_addr() + virt_addr % PAGE_SIZE) as _,
+                    virt_addr as _,
                     file_size,
                 )
             };
-            debug!("ppn: {:#x?}", ppn_start);
             page_space.copy_from_slice(&buffer[offset..offset + file_size]);
-            hexdump(&page_space[..0x200]);
+            // hexdump(&page_space[..0x200]);
         });
 
     if base > 0 {
@@ -271,7 +279,6 @@ pub async fn sys_clone(
         .unwrap_or(UserRef::from(0));
 
     let mut new_tcb = new_task.tcb.write();
-
     new_tcb.clear_child_tid = clear_child_tid.addr();
 
     if stack != 0 {

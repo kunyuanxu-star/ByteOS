@@ -45,8 +45,9 @@ pub async fn user_entry() {
     unsafe {
         sfence_vma_all();
         // *(0x00000000001206ec as *mut u32) = 0;
-        hexdump(core::slice::from_raw_parts_mut(0x1000 as *mut u8, 0x200));
-        debug!("ppn: {:?}", task.page_table.virt_to_phys(0x1000.into()));
+        // let entry = task.pcb.lock().entry;
+        // hexdump(core::slice::from_raw_parts_mut(entry as *mut u8, 0x200));
+        // debug!("ppn: {:?}", task.page_table.virt_to_phys(entry.into()));
     }
 
     let check_signal = async || {
@@ -99,7 +100,7 @@ pub async fn user_entry() {
                     return UserTaskControlFlow::Break;
                 }
                 check_timer(&task);
-                // yield_now().await;
+                yield_now().await;
             }
         });
 
@@ -136,10 +137,10 @@ pub async fn user_entry() {
 
         times += 1;
 
-        // if times >= 50 {
-        //     times = 0;
-        //     yield_now().await;
-        // }
+        if times >= 50 {
+            times = 0;
+            yield_now().await;
+        }
     }
 
     // loop {
