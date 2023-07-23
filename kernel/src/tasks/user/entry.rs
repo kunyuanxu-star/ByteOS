@@ -1,3 +1,5 @@
+use core::arch::riscv64::sfence_vma_all;
+
 use alloc::sync::Arc;
 use arch::ContextOps;
 use executor::signal::SignalList;
@@ -8,7 +10,7 @@ use log::debug;
 use signal::{SigProcMask, SignalFlags};
 
 use crate::tasks::user::{handle_user_interrupt, signal::handle_signal};
-use crate::tasks::UserTaskControlFlow;
+use crate::tasks::{UserTaskControlFlow, hexdump};
 
 pub fn check_timer(task: &Arc<UserTask>) {
     let mut pcb = task.pcb.lock();
@@ -39,6 +41,13 @@ pub async fn user_entry() {
     let task = current_user_task();
     let cx_ref = task.force_cx_ref();
     let mut times = 0;
+
+    unsafe {
+        sfence_vma_all();
+        // *(0x00000000001206ec as *mut u32) = 0;
+        hexdump(core::slice::from_raw_parts_mut(0x1000 as *mut u8, 0x200));
+        debug!("ppn: {:?}", task.page_table.virt_to_phys(0x1000.into()));
+    }
 
     let check_signal = async || {
         loop {
@@ -90,7 +99,7 @@ pub async fn user_entry() {
                     return UserTaskControlFlow::Break;
                 }
                 check_timer(&task);
-                yield_now().await;
+                // yield_now().await;
             }
         });
 
@@ -127,10 +136,10 @@ pub async fn user_entry() {
 
         times += 1;
 
-        if times >= 50 {
-            times = 0;
-            yield_now().await;
-        }
+        // if times >= 50 {
+        //     times = 0;
+        //     yield_now().await;
+        // }
     }
 
     // loop {

@@ -224,39 +224,39 @@ pub async fn initproc() {
     //     info!("No.{} finished!", i);
     // }
 
-    command("busybox echo run time-test").await;
-    command("time-test").await;
+    // command("busybox echo run time-test").await;
+    // command("time-test").await;
 
-    command("busybox echo run busybox_testcode.sh").await;
-    command("busybox sh busybox_testcode.sh").await;
+    // command("busybox echo run busybox_testcode.sh").await;
+    // command("busybox sh busybox_testcode.sh").await;
 
-    command("busybox echo run libctest_testcode.sh").await;
-    command("busybox sh libctest_testcode.sh").await;
+    // command("busybox echo run libctest_testcode.sh").await;
+    // command("busybox sh libctest_testcode.sh").await;
 
-    command("busybox echo run lua_testcode.sh").await;
-    command("busybox sh lua_testcode.sh").await;
+    // command("busybox echo run lua_testcode.sh").await;
+    // command("busybox sh lua_testcode.sh").await;
 
-    command("busybox echo run cyclic_testcode.sh").await;
-    command("busybox sh cyclictest_testcode.sh").await;
-    kill_all_tasks().await;
+    // command("busybox echo run cyclic_testcode.sh").await;
+    // command("busybox sh cyclictest_testcode.sh").await;
+    // kill_all_tasks().await;
 
-    command("libc-bench").await;
+    // command("libc-bench").await;
 
-    command("busybox echo run netperf_testcode.sh").await;
-    command("busybox sh netperf_testcode.sh").await;
+    // command("busybox echo run netperf_testcode.sh").await;
+    // command("busybox sh netperf_testcode.sh").await;
     
-    command("busybox echo run iperf_testcode.sh").await;
-    command("busybox sh iperf_testcode.sh").await;
-    kill_all_tasks().await;
+    // command("busybox echo run iperf_testcode.sh").await;
+    // command("busybox sh iperf_testcode.sh").await;
+    // kill_all_tasks().await;
 
-    command("busybox echo run iozone_testcode.sh").await;
-    command("busybox sh iozone_testcode.sh").await;
+    // command("busybox echo run iozone_testcode.sh").await;
+    // command("busybox sh iozone_testcode.sh").await;
 
-    command("busybox echo run lmbench_testcode.sh").await;
-    command("busybox sh lmbench_testcode.sh").await;
+    // command("busybox echo run lmbench_testcode.sh").await;
+    // command("busybox sh lmbench_testcode.sh").await;
 
-    command("busybox echo run unixbench_testcode.sh").await;
-    command("busybox sh unixbench_testcode.sh").await;
+    // command("busybox echo run unixbench_testcode.sh").await;
+    // command("busybox sh unixbench_testcode.sh").await;
 
     // command("cyclictest -a -i 1000 -t1 -n -p99 -D 1s -q").await;
 
@@ -295,7 +295,8 @@ pub async fn initproc() {
     // command("busybox sh").await;
     // #[cfg(not(feature = "k210"))]
     // command("bin/sh").await;
-    // simple_shell().await;
+    simple_shell().await;
+    // command("busybox").await;
 
     // switch_to_kernel_page_table();
 }

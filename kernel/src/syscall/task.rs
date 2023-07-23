@@ -2,7 +2,7 @@ use crate::syscall::consts::{from_vfs, CloneFlags, Rusage};
 use crate::syscall::time::WaitUntilsec;
 use crate::tasks::elf::{init_task_stack, ElfExtra};
 use crate::tasks::user::entry::user_entry;
-use crate::tasks::{futex_requeue, futex_wake, WaitFutex, WaitPid};
+use crate::tasks::{futex_requeue, futex_wake, WaitFutex, WaitPid, hexdump};
 use alloc::string::String;
 use alloc::sync::Weak;
 use alloc::vec::Vec;
@@ -195,6 +195,7 @@ pub async fn exec_with_process<'a>(
     elf.program_iter()
         .filter(|x| x.get_type().unwrap() == xmas_elf::program::Type::Load)
         .for_each(|ph| {
+            debug!("read stc: {:#x?}", ph);
             let file_size = ph.file_size() as usize;
             let mem_size = ph.mem_size() as usize;
             let offset = ph.offset() as usize;
@@ -214,7 +215,9 @@ pub async fn exec_with_process<'a>(
                     file_size,
                 )
             };
+            debug!("ppn: {:#x?}", ppn_start);
             page_space.copy_from_slice(&buffer[offset..offset + file_size]);
+            hexdump(&page_space[..0x200]);
         });
 
     if base > 0 {

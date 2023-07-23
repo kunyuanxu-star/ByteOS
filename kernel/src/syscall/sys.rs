@@ -78,6 +78,7 @@ pub async fn sys_getgid() -> Result<usize, LinuxError> {
 }
 
 pub async fn sys_getuid() -> Result<usize, LinuxError> {
+    warn!("set_getuid");
     Ok(0)
 }
 

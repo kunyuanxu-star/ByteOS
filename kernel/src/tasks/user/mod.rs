@@ -86,6 +86,8 @@ pub async fn handle_user_interrupt(
             if cx_ref.syscall_number() == SYS_SIGRETURN {
                 return UserTaskControlFlow::Break;
             }
+
+            debug!("syscall num: {}", cx_ref.syscall_number());
             // sepc += 4, let it can go to next command.
             cx_ref.syscall_ok();
             let result = syscall(cx_ref.syscall_number(), cx_ref.args())

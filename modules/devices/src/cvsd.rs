@@ -30,8 +30,9 @@ impl BlkDriver for CvSd {
         cv1811_sd::read_block(block_id as _, buf).expect("can't read block by using CvSd");
     }
 
-    fn write_block(&self, _block_id: usize, _buf: &[u8]) {
-        unimplemented!("cv sd write");
+    fn write_block(&self, block_id: usize, buf: &[u8]) {
+        // unimplemented!("cv sd write");
+        cv1811_sd::write_block(block_id as _, buf).expect("can't write block by using CvSd");
     }
 }
 

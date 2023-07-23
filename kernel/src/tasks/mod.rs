@@ -20,6 +20,38 @@ pub enum UserTaskControlFlow {
     Break,
 }
 
+pub fn hexdump(data: &[u8]) {
+    const PRELAND_WIDTH: usize = 70;
+    logging::println!("{:-^1$}", " hexdump ", PRELAND_WIDTH);
+    for offset in (0..data.len()).step_by(16) {
+        for i in 0..16 {
+            if offset + i < data.len() {
+                logging::print!("{:02x} ", data[offset + i]);
+            } else {
+                logging::print!("{:02} ", "");
+            }
+        }
+
+        logging::print!("{:>6}", ' ');
+
+        for i in 0..16 {
+            if offset + i < data.len() {
+                let c = data[offset + i];
+                if c >= 0x20 && c <= 0x7e {
+                    logging::print!("{}", c as char);
+                } else {
+                    logging::print!(".");
+                }
+            } else {
+                logging::print!("{:02} ", "");
+            }
+        }
+
+        logging::println!("");
+    }
+    logging::println!("{:-^1$}", " hexdump end ", PRELAND_WIDTH);
+}
+
 #[allow(dead_code)]
 pub async fn handle_net() {
     // let lose_stack = LoseStack::new(

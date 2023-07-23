@@ -121,7 +121,7 @@ fn kernel_callback(context: &mut Context) -> usize {
 pub fn trap_pre_handle(context: &mut Context) -> TrapType {
     let scause = scause::read();
     let stval = stval::read();
-    trace!(
+    warn!(
         "用户态中断发生: {:#x} {:?}  stval {:#x}  sepc: {:#x}",
         scause.bits(),
         scause.cause(),
@@ -265,6 +265,7 @@ pub unsafe extern "C" fn user_restore(context: *mut Context) {
         .endr",
         // 恢复 sp（又名 x2）这里最后恢复是为了上面可以正常使用 LOAD 宏    
     r"  LOAD    x2, 2
+        sfence.vma
         sret
     ",
     uservec = sym uservec,

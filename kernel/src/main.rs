@@ -5,6 +5,7 @@
 #![feature(ip_in_core)]
 #![feature(async_closure)]
 #![feature(let_chains)]
+#![feature(stdsimd)]
 
 #[macro_use]
 extern crate logging;
@@ -17,7 +18,6 @@ mod syscall;
 mod task_cache;
 mod tasks;
 
-use arch::console_putchar;
 use devices;
 use frame_allocator;
 use hal;

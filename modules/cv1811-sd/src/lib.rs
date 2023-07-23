@@ -12,16 +12,28 @@ use utils::{mmio_clearbits_32, mmio_clrsetbits_32, mmio_setbits_32, reg_transfer
 
 use crate::{
     consts::{PresentState, REG_SDIO0_CLK_PAD_REG},
-    utils::{check_sd, mmio_read_32, mmio_write_32, test::hexdump},
+    utils::{check_sd, mmio_read_32, mmio_write_32},
 };
 
-#[macro_use]
 extern crate alloc;
 
 /// read a block from the sdcard.
 pub fn read_block(block_id: u32, data: &mut [u8]) -> Result<(), CmdError> {
     cmd_transfer(CommandType::CMD(17), block_id, 1)?;
     read_buff(data)?;
+    let res = wait_for_xfer_done();
+    mmio_write_32(
+        (SD_DRIVER_ADDR + 0x30) as _,
+        mmio_read_32((SD_DRIVER_ADDR + 0x30) as _),
+    );
+    res
+}
+
+/// write a block to the sdcard.
+pub fn write_block(block_id: u32, data: &[u8]) -> Result<(), CmdError> {
+    cmd_transfer(CommandType::CMD(24), block_id, 1)?;
+    // read_buff(data)?;
+    write_buff(data)?;
     let res = wait_for_xfer_done();
     mmio_write_32(
         (SD_DRIVER_ADDR + 0x30) as _,
@@ -116,6 +128,7 @@ pub fn cmd_transfer(cmd: CommandType, arg: u32, blk_cnt: u32) -> Result<(), CmdE
 
     flags |= match cmd {
         CommandType::CMD(17) => DATA_PRESENT | XFER_READ,
+        CommandType::CMD(24) => DATA_PRESENT,
         CommandType::ACMD(51) => DATA_PRESENT | XFER_READ,
         _ => 0,
     };
@@ -126,6 +139,7 @@ pub fn cmd_transfer(cmd: CommandType, arg: u32, blk_cnt: u32) -> Result<(), CmdE
         | CommandType::ACMD(42)
         | CommandType::ACMD(51)
         | CommandType::CMD(17)
+        | CommandType::CMD(24)
         | CommandType::CMD(8)
         | CommandType::CMD(16)
         | CommandType::CMD(7) => L48 | CRC_CHECK_EN | INX_CHECK_EN,
@@ -448,6 +462,36 @@ pub fn read_buff(data: &mut [u8]) -> Result<(), CmdError> {
             .iter_mut()
             .for_each(|x| {
                 *x = mmio_read_32((SD_DRIVER_ADDR + 0x20) as _);
+                asm!("nop");
+            });
+    }
+    Ok(())
+}
+
+
+pub fn write_buff(data: &[u8]) -> Result<(), CmdError> {
+    assert!(data.len() == 0x200);
+    let norm_int_sts = reg_transfer::<NormAndErrIntSts>(0x30);
+
+    loop {
+        if norm_int_sts.buf_wrdy().get() == true {
+            mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 5);
+            break;
+        }
+        if norm_int_sts.err_int().get() == true {
+            mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
+            return Err(CmdError::IntError);
+        }
+        for _ in 0..1000 {
+            unsafe { asm!("nop") }
+        }
+    }
+
+    unsafe {
+        core::slice::from_raw_parts_mut(data.as_ptr() as *mut u32, 0x200 / 4)
+            .iter_mut()
+            .for_each(|x| {
+                mmio_write_32((SD_DRIVER_ADDR + 0x20) as _, *x);
                 asm!("nop");
             });
     }
