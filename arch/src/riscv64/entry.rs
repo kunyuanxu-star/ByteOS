@@ -29,6 +29,7 @@ static mut PAGE_TABLE: [PTE; PAGE_ITEM_COUNT] = {
         0x8000_0000,
         PTEFlags::ADGVRWX,
     );
+    arr[0x106] = PTE::from_addr(0x8000_0000, PTEFlags::ADVRWX);
     arr
 };
 

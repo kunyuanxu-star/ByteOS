@@ -27,10 +27,11 @@ pub struct FrameTracker(pub PhysPage);
 impl FrameTracker {
     pub fn new(ppn: PhysPage) -> Self {
         // clear ppn before alloc.
-        let arr = ppn_c(ppn).to_addr() as *mut u8;
-        unsafe {
-            core::slice::from_raw_parts_mut(arr, PAGE_SIZE).fill(0);
-        }
+        // let arr = ppn_c(ppn).to_addr() as *mut u8;
+        // unsafe {
+        //     core::slice::from_raw_parts_mut(arr, PAGE_SIZE).fill(0);
+        // }
+        ppn.get_buffer().fill(0);
         Self(ppn)
     }
 }
