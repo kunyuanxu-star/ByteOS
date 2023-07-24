@@ -20,10 +20,12 @@ pub enum UserTaskControlFlow {
     Break,
 }
 
-pub fn hexdump(data: &[u8]) {
+pub fn hexdump(data: &[u8], mut start_addr: usize) {
     const PRELAND_WIDTH: usize = 70;
     logging::println!("{:-^1$}", " hexdump ", PRELAND_WIDTH);
     for offset in (0..data.len()).step_by(16) {
+        logging::print!("{:08x} ", start_addr);
+        start_addr += 0x10;
         for i in 0..16 {
             if offset + i < data.len() {
                 logging::print!("{:02x} ", data[offset + i]);

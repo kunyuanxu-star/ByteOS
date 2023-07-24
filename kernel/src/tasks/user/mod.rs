@@ -1,11 +1,11 @@
 use ::signal::SignalFlags;
 use alloc::sync::Arc;
-use arch::{get_time, trap_pre_handle, user_restore, Context, ContextOps, PTEFlags, VirtPage};
+use arch::{get_time, trap_pre_handle, user_restore, Context, ContextOps, PTEFlags, VirtPage, PhysPage};
 use executor::{current_user_task, AsyncTask, MemType, UserTask};
 use frame_allocator::frame_alloc;
 use log::{debug, warn};
 
-use crate::syscall::{consts::SYS_SIGRETURN, syscall};
+use crate::{syscall::{consts::SYS_SIGRETURN, syscall}, tasks::hexdump};
 
 use super::UserTaskControlFlow;
 
@@ -119,6 +119,10 @@ pub async fn handle_user_interrupt(
                 cx_ref.sepc(),
                 task.page_table.virt_to_phys(cx_ref.sepc().into())
             );
+            task.map(PhysPage::from_addr(task.page_table.virt_to_phys(cx_ref.sepc().into()).addr()), vpn, PTEFlags::UVRWX.union(PTEFlags::G));
+            unsafe {
+                hexdump(core::slice::from_raw_parts_mut(vpn.to_addr() as _, 0x200), vpn.to_addr());
+            }
             // panic!("illegal Instruction")
             // let signal = task.tcb.read().signal.clone();
             // if signal.has_sig(SignalFlags::SIGSEGV) {
@@ -126,12 +130,12 @@ pub async fn handle_user_interrupt(
             // } else {
             //     return UserTaskControlFlow::Break
             // }
-            current_user_task()
-                .tcb
-                .write()
-                .signal
-                .add_signal(SignalFlags::SIGSEGV);
-            return UserTaskControlFlow::Break;
+            // current_user_task()
+            //     .tcb
+            //     .write()
+            //     .signal
+            //     .add_signal(SignalFlags::SIGSEGV);
+            // return UserTaskControlFlow::Break;
         }
         arch::TrapType::StorePageFault(addr) | arch::TrapType::InstructionPageFault(addr) => {
             debug!("store page fault");

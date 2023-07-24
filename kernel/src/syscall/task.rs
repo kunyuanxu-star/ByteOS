@@ -224,8 +224,15 @@ pub async fn exec_with_process<'a>(
                     file_size,
                 )
             };
+            let ppn_space = unsafe {
+                core::slice::from_raw_parts_mut(
+                    (ppn_c(ppn_start).to_addr() + virt_addr % PAGE_SIZE) as _,
+                    file_size,
+                )
+            };
             page_space.copy_from_slice(&buffer[offset..offset + file_size]);
-            // hexdump(&page_space[..0x200]);
+            assert_eq!(page_space, ppn_space);
+            hexdump(&page_space, virt_addr);
         });
 
     if base > 0 {

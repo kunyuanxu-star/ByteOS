@@ -19,11 +19,13 @@ impl PTE {
     #[inline]
     pub const fn from_ppn(ppn: usize, flags: PTEFlags) -> Self {
         // let flags = flags.union(PTEFlags::D);
-        let flags = if flags.contains(PTEFlags::R) {
-            flags.union(PTEFlags::AD)
-        } else {
-            flags
-        };
+        let mut flags = flags;
+        if flags.contains(PTEFlags::R) | flags.contains(PTEFlags::X) {
+            flags = flags.union(PTEFlags::A)
+        }
+        if flags.contains(PTEFlags::W) {
+            flags = flags.union(PTEFlags::D)
+        }
         // TIPS: This is prepare for the extend bits of T-HEAD C906
         #[cfg(feature = "board-cv1811h")]
         if flags.contains(PTEFlags::G) {
@@ -47,7 +49,7 @@ impl PTE {
 
     #[inline]
     pub const fn to_ppn(&self) -> PhysPage {
-        PhysPage(self.0 >> 10)
+        PhysPage((self.0 >> 10) & ((1 << 29) - 1))
     }
 
     #[inline]
@@ -150,8 +152,6 @@ impl PageTable {
     where
         G: FnMut() -> PhysPage,
     {
-        let flags = flags.union(PTEFlags::AD);
-
         // TODO: Add huge page support.
         let mut page_table = PageTable(self.0);
         for i in (1..level).rev() {
