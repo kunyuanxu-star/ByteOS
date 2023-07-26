@@ -223,7 +223,7 @@ pub async fn exec_with_process<'a>(
                 asm!("sfence.vma");
                 asm!("fence.i");
             }
-            flush_dcache_range();
+            // flush_dcache_range();
 
             // let page_space = unsafe {
             //     core::slice::from_raw_parts_mut(
