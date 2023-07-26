@@ -2,12 +2,12 @@ use crate::syscall::consts::{from_vfs, CloneFlags, Rusage};
 use crate::syscall::time::WaitUntilsec;
 use crate::tasks::elf::{init_task_stack, ElfExtra};
 use crate::tasks::user::entry::user_entry;
-use crate::tasks::{futex_requeue, futex_wake, WaitFutex, WaitPid, hexdump};
+use crate::tasks::{futex_requeue, futex_wake, WaitFutex, WaitPid};
 use alloc::string::String;
 use alloc::sync::Weak;
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
-use arch::{paddr_c, ppn_c, time_to_usec, ContextOps, PhysAddr, VirtAddr, VirtPage, PAGE_SIZE, PhysPage};
+use arch::{paddr_c, time_to_usec, ContextOps, VirtAddr, VirtPage, PAGE_SIZE, PhysPage};
 use async_recursion::async_recursion;
 use core::arch::asm;
 use core::cmp;
@@ -128,19 +128,12 @@ pub async fn exec_with_process<'a>(
     let file = open(path).map_err(from_vfs)?;
     let file_size = file.metadata().unwrap().size;
     let frame_ppn = frame_alloc_much(ceil_div(file_size, PAGE_SIZE));
-    // let buffer = PhysAddr::from(frame_ppn.as_ref().unwrap()[0].0).slice_mut_with_len(file_size);
-    // let buffer = unsafe {
-    //     core::slice::from_raw_parts_mut(frame_ppn.as_ref().unwrap()[0].0.get_buffer().as_mut_ptr(), file_size)
-    // };
-    let mut buffer = vec![0u8; file_size];
-    debug!("buffer ptr: {:#x}", buffer.as_ptr() as usize);
-    let rsize = file.read(&mut buffer).map_err(from_vfs)?;
-    // if path.contains("time-test") {
-    //     debug!("copy");
-    //     buffer.copy_from_slice(include_bytes!("../../../tools/testcase-final2023/time-test"));
-    // };
+    let buffer = unsafe {
+        core::slice::from_raw_parts_mut(frame_ppn.as_ref().unwrap()[0].0.get_buffer().as_mut_ptr(), file_size)
+    };
+    let rsize = file.read(buffer).map_err(from_vfs)?;
     assert_eq!(rsize, file_size);
-    flush_dcache_range();
+    // flush_dcache_range();
     // 读取elf信息
     let elf = if let Ok(elf) = xmas_elf::ElfFile::new(&buffer) {
         elf
@@ -197,7 +190,6 @@ pub async fn exec_with_process<'a>(
         Ok(arr) => (base, arr),
         Err(_) => (0, vec![]),
     };
-
     init_task_stack(
         user_task.clone(),
         args,
@@ -210,7 +202,6 @@ pub async fn exec_with_process<'a>(
         heap_bottom as usize,
         tls as usize,
     );
-
     // map sections.
     elf.program_iter()
         .filter(|x| x.get_type().unwrap() == xmas_elf::program::Type::Load)
@@ -228,6 +219,11 @@ pub async fn exec_with_process<'a>(
                 MemType::CodeSection,
                 page_count,
             );
+            unsafe {
+                asm!("sfence.vma");
+                asm!("fence.i");
+            }
+            flush_dcache_range();
 
             // let page_space = unsafe {
             //     core::slice::from_raw_parts_mut(
@@ -243,7 +239,7 @@ pub async fn exec_with_process<'a>(
             };
             let ppn_space = unsafe {
                 core::slice::from_raw_parts_mut(
-                    ppn_start.get_buffer().as_mut_ptr(),
+                    ppn_start.get_buffer().as_mut_ptr().add(virt_addr % PAGE_SIZE),
                     file_size,
                 )
             };
@@ -252,38 +248,94 @@ pub async fn exec_with_process<'a>(
             for i in 0..ceil_div(file_size, PAGE_SIZE) {
                 let virt = VirtAddr::from(virt_addr + i * PAGE_SIZE);
                 let ppn = PhysPage::from_addr(page_table.virt_to_phys(virt).addr());
-                let flags = page_table.virt_flags(virt);
-                debug!("virt: {:?} ppn: {:?} should_mapped_ppn: {:?} flags: {:?}", virt, ppn, ppn_start.add(i), flags);
+                debug!(
+                    "virt: {:?} ppn: {:?} should_mapped_ppn: {:?} flags: {:?} origin_flags: {:?}", 
+                    virt, 
+                    ppn, 
+                    ppn_start.add(i), 
+                    page_table.virt_flags(virt), 
+                    page_table.virt_flags(VirtAddr::from(ppn.get_buffer().as_ptr() as usize))
+                );
                 assert_eq!(ppn_start.add(i), ppn);
             }
-            unsafe {
-                asm!("sfence.vma");
-            }
-            flush_dcache_range();
+            // unsafe {
+            //     asm!("sfence.vma");
+            //     asm!("fence.i");
+            // }
+            // flush_dcache_range();
+            // unsafe {
+            //     asm!("sfence.vma");
+            //     asm!("fence.i");
+            // }
             debug!("ppn_space: {:#x}  virt_ppn: {:#x?}", ppn_space.as_ptr() as usize, user_task.page_table.virt_to_phys(virt_addr.into()));
-            ppn_space.copy_from_slice(&buffer[offset..offset + file_size]);
+            page_space.copy_from_slice(&buffer[offset..offset + file_size]);
+            // file.seek(vfscore::SeekFrom::SET(offset));
+            // file.read(ppn_space);
 
-            unsafe {
-                asm!("sfence.vma");
+            // flush_dcache_range();
+            // unsafe {
+            //     asm!("sfence.vma");
+            //     asm!("fence.i");
+            // }
+            // flush_dcache_range();
+
+            // assert_eq!(ppn_space, page_space);
+
+            debug!("page_space:");
+            for (i, (x, y)) in page_space.iter().zip(ppn_space).enumerate() {
+                // flush_dcache_range();
+                // unsafe {
+                //     asm!("sfence.vma");
+                //     asm!("fence.i");
+                // }
+                // flush_dcache_range();
+                // debug!("times: {:#x}  ptr: {:#x?}  ptr: {:#x?}", i, page_table.virt_to_phys(VirtAddr::from(x as *const _ as usize)), page_table.virt_to_phys(VirtAddr::from(y as *const _ as usize)));
+                assert_eq!(*x, *y)
             }
-            flush_dcache_range();
+            for (i, (x, y)) in buffer[offset..offset + file_size].iter().zip(page_space).enumerate() {
+                // debug!("times: {:#x}", i);
+                assert_eq!(*x, *y)
+            }
+            // assert_eq!(&buffer[offset..offset + file_size], ppn_space);
+            // debug!("write size: {:#x}", file_size);
+            // let page_table = &user_task.page_table;
+            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
+            //     let virt = VirtAddr::from(virt_addr + i * PAGE_SIZE);
+            //     let ppn = PhysPage::from_addr(page_table.virt_to_phys(virt).addr());
+            //     let flags = page_table.virt_flags(virt);
+            //     debug!("virt: {:?} ppn: {:?} should_mapped_ppn: {:?} flags: {:?}", virt, ppn, ppn_start.add(i), flags);
+            //     assert_eq!(ppn_start.add(i), ppn);
+            // }
+            // unsafe {
+            //     asm!("sfence.vma");
+            // }
+            // flush_dcache_range();
+            // debug!("ppn_space: {:#x}  virt_ppn: {:#x?}", ppn_space.as_ptr() as usize, user_task.page_table.virt_to_phys(virt_addr.into()));
+            // ppn_space.copy_from_slice(&buffer[offset..offset + file_size]);
 
-            const BUF_SIZE: usize = 0x1000;
-            let origin_space = &buffer[offset..offset + file_size];
-            for i in 0..ceil_div(file_size, PAGE_SIZE) {
-                debug!("times: {}", i);
-                let start = i*BUF_SIZE;
-                let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
-                assert_eq!(origin_space[start..end], page_space[start..end]);
-            };
-            assert_eq!(&buffer[offset..offset + file_size], ppn_space);
-            flush_dcache_range();
-            for i in 0..ceil_div(file_size, PAGE_SIZE) {
-                debug!("times: {}", i);
-                let start = i*BUF_SIZE;
-                let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
-                assert_eq!(page_space[start..end], ppn_space[start..end]);
-            };
+            // unsafe {
+            //     asm!("sfence.vma");
+            // }
+            // flush_dcache_range();
+
+            // assert_eq!(ppn_space, page_space);
+
+            // const BUF_SIZE: usize = 0x1000;
+            // let origin_space = &buffer[offset..offset + file_size];
+            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
+            //     debug!("times: {}", i);
+            //     let start = i*BUF_SIZE;
+            //     let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
+            //     assert_eq!(origin_space[start..end], page_space[start..end]);
+            // };
+            // assert_eq!(&buffer[offset..offset + file_size], ppn_space);
+            // flush_dcache_range();
+            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
+            //     debug!("times: {}", i);
+            //     let start = i*BUF_SIZE;
+            //     let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
+            //     assert_eq!(page_space[start..end], ppn_space[start..end]);
+            // };
             // hexdump(&page_space, virt_addr);
         });
 
