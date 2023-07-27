@@ -73,6 +73,10 @@ pub async fn sys_execve(
     args: UserRef<UserRef<i8>>, // *mut *mut i8
     envp: UserRef<UserRef<i8>>, // *mut *mut i8
 ) -> Result<usize, LinuxError> {
+    debug!(
+        "sys_execve @ filename: {} args: {:?}: envp: {:?}",
+        filename, args, envp
+    );
     // TODO: use map_err insteads of unwrap and unsafe code.
     let filename = filename.get_cstr().map_err(|_| LinuxError::EINVAL)?;
     let args = args
@@ -206,7 +210,6 @@ pub async fn exec_with_process<'a>(
     elf.program_iter()
         .filter(|x| x.get_type().unwrap() == xmas_elf::program::Type::Load)
         .for_each(|ph| {
-            debug!("read stc: {:#x?}", ph);
             let file_size = ph.file_size() as usize;
             let mem_size = ph.mem_size() as usize;
             let offset = ph.offset() as usize;
@@ -219,18 +222,6 @@ pub async fn exec_with_process<'a>(
                 MemType::CodeSection,
                 page_count,
             );
-            unsafe {
-                asm!("sfence.vma");
-                asm!("fence.i");
-            }
-            // flush_dcache_range();
-
-            // let page_space = unsafe {
-            //     core::slice::from_raw_parts_mut(
-            //         (ppn_c(ppn_start).to_addr() + virt_addr % PAGE_SIZE) as _,
-            //         file_size,
-            //     )
-            // };
             let page_space = unsafe {
                 core::slice::from_raw_parts_mut(
                     virt_addr as _,
@@ -258,91 +249,13 @@ pub async fn exec_with_process<'a>(
                 );
                 assert_eq!(ppn_start.add(i), ppn);
             }
-            // unsafe {
-            //     asm!("sfence.vma");
-            //     asm!("fence.i");
-            // }
-            // flush_dcache_range();
-            // unsafe {
-            //     asm!("sfence.vma");
-            //     asm!("fence.i");
-            // }
             debug!("ppn_space: {:#x}  virt_ppn: {:#x?}", ppn_space.as_ptr() as usize, user_task.page_table.virt_to_phys(virt_addr.into()));
             page_space.copy_from_slice(&buffer[offset..offset + file_size]);
-            // file.seek(vfscore::SeekFrom::SET(offset));
-            // file.read(ppn_space);
-
-            // flush_dcache_range();
-            // unsafe {
-            //     asm!("sfence.vma");
-            //     asm!("fence.i");
-            // }
-            // flush_dcache_range();
-
-            // assert_eq!(ppn_space, page_space);
-
-            debug!("page_space:");
-            for (i, (x, y)) in page_space.iter().zip(ppn_space).enumerate() {
-                // flush_dcache_range();
-                // unsafe {
-                //     asm!("sfence.vma");
-                //     asm!("fence.i");
-                // }
-                // flush_dcache_range();
-                // debug!("times: {:#x}  ptr: {:#x?}  ptr: {:#x?}", i, page_table.virt_to_phys(VirtAddr::from(x as *const _ as usize)), page_table.virt_to_phys(VirtAddr::from(y as *const _ as usize)));
-                assert_eq!(*x, *y)
-            }
-            for (i, (x, y)) in buffer[offset..offset + file_size].iter().zip(page_space).enumerate() {
-                // debug!("times: {:#x}", i);
-                assert_eq!(*x, *y)
-            }
-            // assert_eq!(&buffer[offset..offset + file_size], ppn_space);
-            // debug!("write size: {:#x}", file_size);
-            // let page_table = &user_task.page_table;
-            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
-            //     let virt = VirtAddr::from(virt_addr + i * PAGE_SIZE);
-            //     let ppn = PhysPage::from_addr(page_table.virt_to_phys(virt).addr());
-            //     let flags = page_table.virt_flags(virt);
-            //     debug!("virt: {:?} ppn: {:?} should_mapped_ppn: {:?} flags: {:?}", virt, ppn, ppn_start.add(i), flags);
-            //     assert_eq!(ppn_start.add(i), ppn);
-            // }
-            // unsafe {
-            //     asm!("sfence.vma");
-            // }
-            // flush_dcache_range();
-            // debug!("ppn_space: {:#x}  virt_ppn: {:#x?}", ppn_space.as_ptr() as usize, user_task.page_table.virt_to_phys(virt_addr.into()));
-            // ppn_space.copy_from_slice(&buffer[offset..offset + file_size]);
-
-            // unsafe {
-            //     asm!("sfence.vma");
-            // }
-            // flush_dcache_range();
-
-            // assert_eq!(ppn_space, page_space);
-
-            // const BUF_SIZE: usize = 0x1000;
-            // let origin_space = &buffer[offset..offset + file_size];
-            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
-            //     debug!("times: {}", i);
-            //     let start = i*BUF_SIZE;
-            //     let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
-            //     assert_eq!(origin_space[start..end], page_space[start..end]);
-            // };
-            // assert_eq!(&buffer[offset..offset + file_size], ppn_space);
-            // flush_dcache_range();
-            // for i in 0..ceil_div(file_size, PAGE_SIZE) {
-            //     debug!("times: {}", i);
-            //     let start = i*BUF_SIZE;
-            //     let end = cmp::min((i + 1)*BUF_SIZE, origin_space.len());
-            //     assert_eq!(page_space[start..end], ppn_space[start..end]);
-            // };
-            // hexdump(&page_space, virt_addr);
         });
 
     if base > 0 {
         relocated_arr.into_iter().for_each(|(addr, value)| unsafe {
-            (paddr_c(user_task.page_table.virt_to_phys(VirtAddr::from(addr))).addr() as *mut usize)
-                .write(value);
+            (addr as *mut usize).write_volatile(value);
         })
     }
     Ok(user_task)

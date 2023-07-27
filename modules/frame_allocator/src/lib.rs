@@ -3,13 +3,13 @@
 #[macro_use]
 extern crate alloc;
 
-use core::mem::size_of;
+use core::{mem::size_of, arch::asm};
 
 use alloc::vec::Vec;
 use arch::{PhysPage, PAGE_SIZE, VIRT_ADDR_START};
 use bit_field::{BitArray, BitField};
 use kheader::mm::get_memorys;
-use log::info;
+use log::{info, debug};
 use sync::Mutex;
 
 pub const fn floor(a: usize, b: usize) -> usize {
@@ -34,7 +34,18 @@ impl FrameTracker {
 
 impl Drop for FrameTracker {
     fn drop(&mut self) {
+        debug!("drop file page: {:#x?}", self.0);
         self.0.get_buffer().fill(0);
+        unsafe {
+            // 老风格的llvm asm
+            // DCACHE 指定物理地址清脏表项
+            // llvm_asm!("dcache.cpa $0"::"r"(i));
+
+            // 新asm
+            // asm!(".long 0x0295000b", in("a0") usize::from(self.0)); // dcache.cpa a0, 因编译器无法识别该指令
+            asm!(".long 0x0010000b"); // dcache.all
+            asm!(".long 0x01b0000b"); // sync.is
+        }
         FRAME_ALLOCATOR.lock().dealloc(self.0);
     }
 }

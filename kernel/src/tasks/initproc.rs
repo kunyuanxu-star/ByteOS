@@ -266,6 +266,7 @@ pub async fn initproc() {
     // command("./runtest.exe -w entry-static.exe pthread_cond_smasher").await;
     // command("./runtest.exe -w entry-dynamic.exe daemon_failure").await;
     // command("./runtest.exe -w entry-dynamic.exe stat").await;
+    // command("./runtest.exe -w entry-static.exe stat").await;
     // command("./looper 2 ./multi.sh 1").await;
     // command("busybox sh ./multi.sh 1").await;
     // command("busybox sh ./tst.sh ./sort.src").await;

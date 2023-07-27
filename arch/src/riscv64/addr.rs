@@ -2,7 +2,7 @@ use core::{
     ffi::CStr,
     fmt::{Debug, Display},
     ops::Add,
-    slice::from_raw_parts_mut,
+    slice::from_raw_parts_mut, arch::asm,
 };
 
 use crate::{paddr_cn, ppn_c, PAGE_SIZE, VIRT_ADDR_START, PAGE_FRAME_BASE};
@@ -185,10 +185,21 @@ impl PhysPage {
 
     #[inline]
     pub fn copy_value_from_another(&self, ppn: PhysPage) {
+        // unsafe {
+        //     let src = from_raw_parts_mut(ppn_c(ppn).to_addr() as *mut u8, PAGE_SIZE);
+        //     let dst = from_raw_parts_mut(ppn_c(*self).to_addr() as *mut u8, PAGE_SIZE);
+        //     dst.copy_from_slice(src);
+        // }
+        self.get_buffer().copy_from_slice(&ppn.get_buffer());
         unsafe {
-            let src = from_raw_parts_mut(ppn_c(ppn).to_addr() as *mut u8, PAGE_SIZE);
-            let dst = from_raw_parts_mut(ppn_c(*self).to_addr() as *mut u8, PAGE_SIZE);
-            dst.copy_from_slice(src);
+            // 老风格的llvm asm
+            // DCACHE 指定物理地址清脏表项
+            // llvm_asm!("dcache.cpa $0"::"r"(i));
+
+            // 新asm
+            // asm!(".long 0x0295000b", in("a0") usize::from(self.0)); // dcache.cpa a0, 因编译器无法识别该指令
+            asm!(".long 0x0010000b"); // dcache.all
+            asm!(".long 0x01b0000b"); // sync.is
         }
     }
 }
