@@ -47,6 +47,7 @@ endif
 features += board-$(BOARD)
 
 all: 
+	rm rust-toolchain.toml
 	cp -R cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --features "$(features)" --offline
 #	cp $(SBI) sbi-qemu
