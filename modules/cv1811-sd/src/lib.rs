@@ -452,7 +452,7 @@ pub fn read_buff(data: &mut [u8]) -> Result<(), CmdError> {
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
             return Err(CmdError::IntError);
         }
-        for _ in 0..1000 {
+        for _ in 0..1 {
             unsafe { asm!("nop") }
         }
     }
@@ -482,7 +482,7 @@ pub fn write_buff(data: &[u8]) -> Result<(), CmdError> {
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
             return Err(CmdError::IntError);
         }
-        for _ in 0..1000 {
+        for _ in 0..1 {
             unsafe { asm!("nop") }
         }
     }
