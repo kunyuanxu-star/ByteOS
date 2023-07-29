@@ -191,13 +191,8 @@ impl PhysPage {
         //     dst.copy_from_slice(src);
         // }
         self.get_buffer().copy_from_slice(&ppn.get_buffer());
+        #[cfg(feature = "board-cv1811h")]
         unsafe {
-            // 老风格的llvm asm
-            // DCACHE 指定物理地址清脏表项
-            // llvm_asm!("dcache.cpa $0"::"r"(i));
-
-            // 新asm
-            // asm!(".long 0x0295000b", in("a0") usize::from(self.0)); // dcache.cpa a0, 因编译器无法识别该指令
             asm!(".long 0x0010000b"); // dcache.all
             asm!(".long 0x01b0000b"); // sync.is
         }

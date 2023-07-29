@@ -44,9 +44,12 @@ pub async fn user_entry() {
 
     unsafe {
         sfence_vma_all();
-        // *(0x00000000001206ec as *mut u32) = 0;
+        // use this statement to simulate a breakpoint.
+        // *(0x0000000000484a8 as *mut u32) = 0;
+        // *(0x10ab8 as *mut u32) = 0;
+        // *(0x11000 as *mut u32) = 0;
         // let entry = task.pcb.lock().entry;
-        // hexdump(core::slice::from_raw_parts_mut(entry as *mut u8, 0x200));
+        // hexdump(core::slice::from_raw_parts_mut(0x48000 as *mut u8, 0x1000), 0x48000);
         // debug!("ppn: {:?}", task.page_table.virt_to_phys(entry.into()));
     }
 

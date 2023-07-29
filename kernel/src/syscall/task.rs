@@ -109,16 +109,6 @@ pub async fn exec_with_process<'a>(
     path: &'a str,
     args: Vec<&'a str>,
 ) -> Result<Arc<UserTask>, LinuxError> {
-    // 注意start输入物理地址
-    pub fn flush_dcache_range() {
-        unsafe {
-            //llvm_asm!("sync.is");
-            asm!(".long 0x0010000b"); // dcache.all
-            // asm!(".long 0x01b0000b"); // sync.is
-            asm!(".long 0x180000B")
-        }
-    }
-
     // copy args, avoid free before pushing.
     let args: Vec<String> = args.into_iter().map(|x| String::from(x)).collect();
     debug!("exec: {:?}", args);
@@ -163,8 +153,8 @@ pub async fn exec_with_process<'a>(
         .program_iter()
         .find(|ph| ph.get_type() == Ok(Type::Interp));
     if let Some(header) = header {
-        drop(frame_ppn);
         if let Ok(SegmentData::Undefined(_data)) = header.get_data(&elf) {
+            drop(frame_ppn);
             let lib_path = "libc.so";
             let mut new_args = vec![lib_path, path];
             args[1..].iter().for_each(|x| new_args.push(x));
@@ -234,23 +224,10 @@ pub async fn exec_with_process<'a>(
                     file_size,
                 )
             };
-            debug!("write size: {:#x}", file_size);
-            let page_table = &user_task.page_table;
-            for i in 0..ceil_div(file_size, PAGE_SIZE) {
-                let virt = VirtAddr::from(virt_addr + i * PAGE_SIZE);
-                let ppn = PhysPage::from_addr(page_table.virt_to_phys(virt).addr());
-                debug!(
-                    "virt: {:?} ppn: {:?} should_mapped_ppn: {:?} flags: {:?} origin_flags: {:?}", 
-                    virt, 
-                    ppn, 
-                    ppn_start.add(i), 
-                    page_table.virt_flags(virt), 
-                    page_table.virt_flags(VirtAddr::from(ppn.get_buffer().as_ptr() as usize))
-                );
-                assert_eq!(ppn_start.add(i), ppn);
-            }
-            debug!("ppn_space: {:#x}  virt_ppn: {:#x?}", ppn_space.as_ptr() as usize, user_task.page_table.virt_to_phys(virt_addr.into()));
             page_space.copy_from_slice(&buffer[offset..offset + file_size]);
+            assert_eq!(ppn_space, page_space);
+            assert_eq!(&buffer[offset..offset + file_size], ppn_space);
+            assert_eq!(&buffer[offset..offset + file_size], page_space);
         });
 
     if base > 0 {

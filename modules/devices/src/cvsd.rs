@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use cv1811_sd::clk_en;
 use fdt::node::FdtNode;
 
 use crate::{
@@ -27,12 +28,16 @@ impl Driver for CvSd {
 
 impl BlkDriver for CvSd {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {
+        clk_en(true);
         cv1811_sd::read_block(block_id as _, buf).expect("can't read block by using CvSd");
+        clk_en(false);
     }
 
     fn write_block(&self, block_id: usize, buf: &[u8]) {
         // unimplemented!("cv sd write");
+        clk_en(true);
         cv1811_sd::write_block(block_id as _, buf).expect("can't write block by using CvSd");
+        clk_en(false);
     }
 }
 

@@ -203,13 +203,28 @@ pub async fn simple_shell() {
 }
 
 pub async fn initproc() {
-    info!("start kernel tasks");
+    println!("start kernel tasks");
+    command("entry-static.exe crypt").await;
+    command("./runtest.exe -w entry-dynamic.exe crypt").await;
+
     // let names = include_str!("../../../tools/testcase-step2/run-static.sh");
     // for (i, x) in names
     //     .split('\n')
-    //     .filter(|x| !x.contains("socket"))
+    //     .filter(|x| !x.contains("clocale_mbfuncs") && !x.contains("pthread"))
     //     .enumerate()
     // {
+    //     info!("No.{} started!", i);
+    //     command(x).await;
+    //     info!("No.{} finished!", i);
+    // }
+
+    // let names = include_str!("../../../tools/testcase-step2/run-static.sh");
+    // for (i, x) in names
+    //     .split('\n')
+    //     .filter(|x| x.contains("clocale_mbfuncs") || x.contains("pthread"))
+    //     .enumerate()
+    // {
+    //     info!("No.{} started!", i);
     //     command(x).await;
     //     info!("No.{} finished!", i);
     // }
@@ -224,14 +239,25 @@ pub async fn initproc() {
     //     info!("No.{} finished!", i);
     // }
 
-    command("busybox echo run time-test").await;
-    command("time-test").await;
+    // command("busybox echo run time-test").await;
+    // command("time-test").await;
 
-    command("busybox echo run busybox_testcode.sh").await;
-    command("busybox sh busybox_testcode.sh").await;
+    // command("busybox echo run busybox_testcode.sh").await;
+    // command("busybox sh busybox_testcode.sh").await;
 
-    command("busybox echo run lua_testcode.sh").await;
-    command("busybox sh lua_testcode.sh").await;
+    // command("busybox echo run lua_testcode.sh").await;
+    // command("busybox sh lua_testcode.sh").await;
+
+    // let names = include_str!("../../../tools/testcase-step2/run-static.sh");
+    // for (i, x) in names
+    //     .split('\n')
+    //     .filter(|x| !x.contains("clocale_mbfuncs") && !x.contains("pthread"))
+    //     .enumerate()
+    // {
+    //     println!("No.{} started!", i);
+    //     command(x).await;
+    //     println!("No.{} finished!", i);
+    // }
 
     // command("busybox echo run libctest_testcode.sh").await;
     // command("busybox sh libctest_testcode.sh").await;

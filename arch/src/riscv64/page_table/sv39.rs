@@ -4,7 +4,7 @@ use bitflags::bitflags;
 
 use crate::{
     current_page_table, sigtrx::get_trx_mapping, PhysAddr, PhysPage, VirtAddr, VirtPage,
-    PAGE_ITEM_COUNT, PAGE_SIZE, VIRT_ADDR_START,
+    PAGE_ITEM_COUNT, PAGE_SIZE, PAGE_FRAME_BASE,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -33,7 +33,7 @@ impl PTE {
         } else if flags.contains(PTEFlags::G) && ppn == 0 {
             Self(ppn << 10 | flags.union(PTEFlags::SE).union(PTEFlags::SO).bits() as usize)
         } else {
-            Self(ppn << 10 | flags.bits() as usize)
+            Self(ppn << 10 | flags.union(PTEFlags::C).bits() as usize)
         }
 
         #[cfg(not(feature = "board-cv1811h"))]
@@ -225,19 +225,19 @@ impl PageTable {
 
 /// ppn convert, 如果在高半核空间
 pub const fn ppn_c(ppn: PhysPage) -> PhysPage {
-    PhysPage(ppn.0 | (VIRT_ADDR_START >> 12))
+    PhysPage(ppn.0 | (PAGE_FRAME_BASE >> 12))
 }
 
 /// paddr convert, 如果在高半核空间
 pub fn paddr_c(paddr: PhysAddr) -> PhysAddr {
-    assert!(paddr.0 < VIRT_ADDR_START);
-    PhysAddr(paddr.0 + VIRT_ADDR_START)
+    assert!(paddr.0 < PAGE_FRAME_BASE);
+    PhysAddr(paddr.0 + PAGE_FRAME_BASE)
 }
 
 /// paddr number convert, 如果在高半核空间
 pub fn paddr_cn(paddr: usize) -> usize {
-    assert!(paddr < VIRT_ADDR_START);
-    paddr + VIRT_ADDR_START
+    assert!(paddr < PAGE_FRAME_BASE);
+    paddr + PAGE_FRAME_BASE
 }
 
 /// 虚拟地址转物理地址

@@ -53,7 +53,7 @@ pub fn reset_config() {
             (SD_DRIVER_ADDR + 0x2c) as *mut u32,
             (1 << 24) | (1 << 25) | (1 << 26),
         );
-        for _ in 0..0x100_0000 {
+        for _ in 0..0x1000 {
             asm!("nop")
         }
         // enable power
@@ -78,7 +78,7 @@ pub fn wait_for_cmd_done() -> Result<(), CmdError> {
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 0);
             break Ok(());
         }
-        for _ in 0..1000 {
+        for _ in 0..1 {
             unsafe { asm!("nop") }
         }
     }
@@ -95,7 +95,7 @@ pub fn wait_for_xfer_done() -> Result<(), CmdError> {
             mmio_write_32((SD_DRIVER_ADDR + 0x30) as _, 1 << 15);
             break Err(CmdError::IntError);
         }
-        for _ in 0..1000 {
+        for _ in 0..1 {
             unsafe { asm!("nop") }
         }
     }
@@ -395,7 +395,7 @@ pub fn power_config(level: PowerLevel) {
         } else {
             *((TOP_BASE + REG_TOP_SD_PWRSW_CTRL) as *mut u8) = 0x9;
         }
-        for _ in 0..0x100_0000 {
+        for _ in 0..0x10_0000 {
             asm!("nop")
         }
     }
@@ -413,12 +413,12 @@ pub fn set_clock(dividor: u8) {
             if clk_ctl.int_clk_stable().get() == u1!(1) {
                 break;
             }
-            for _ in 0..0x100_0000 {
+            for _ in 0..0x10 {
                 asm!("nop")
             }
         }
         clk_ctl.sd_clk_en().set(u1!(1));
-        for _ in 0..0x100_0000 {
+        for _ in 0..0x10_0000 {
             asm!("nop")
         }
     }
@@ -537,6 +537,17 @@ pub fn init() -> Result<(), CmdError> {
         unsafe {
             *((SD_DRIVER_ADDR + 0x28) as *mut u8) |= 2;
         }
+        clk_en(false);
+        
     }
     Ok(())
+}
+
+pub fn clk_en(en: bool) {
+    let clk_ctl = reg_transfer::<ClkCtl>(0x2c);
+    if en {
+        clk_ctl.sd_clk_en().set(u1!(1));
+    } else {
+        clk_ctl.sd_clk_en().set(u1!(0));
+    }
 }
