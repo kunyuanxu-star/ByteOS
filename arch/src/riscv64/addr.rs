@@ -185,12 +185,17 @@ impl PhysPage {
 
     #[inline]
     pub fn copy_value_from_another(&self, ppn: PhysPage) {
-        // unsafe {
-        //     let src = from_raw_parts_mut(ppn_c(ppn).to_addr() as *mut u8, PAGE_SIZE);
-        //     let dst = from_raw_parts_mut(ppn_c(*self).to_addr() as *mut u8, PAGE_SIZE);
-        //     dst.copy_from_slice(src);
-        // }
         self.get_buffer().copy_from_slice(&ppn.get_buffer());
+        #[cfg(feature = "board-cv1811h")]
+        unsafe {
+            asm!(".long 0x0010000b"); // dcache.all
+            asm!(".long 0x01b0000b"); // sync.is
+        }
+    }
+
+    #[inline]
+    pub fn drop_clear(&self) {
+        self.get_buffer().fill(0);
         #[cfg(feature = "board-cv1811h")]
         unsafe {
             asm!(".long 0x0010000b"); // dcache.all

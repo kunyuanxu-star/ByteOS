@@ -34,11 +34,7 @@ impl FrameTracker {
 
 impl Drop for FrameTracker {
     fn drop(&mut self) {
-        self.0.get_buffer().fill(0);
-        // unsafe {
-        //     asm!(".long 0x0010000b"); // dcache.all
-        //     asm!(".long 0x01b0000b"); // sync.is
-        // }
+        self.0.drop_clear();
         FRAME_ALLOCATOR.lock().dealloc(self.0);
     }
 }

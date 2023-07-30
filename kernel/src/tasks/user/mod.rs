@@ -111,7 +111,7 @@ pub async fn handle_user_interrupt(
         }
         arch::TrapType::IllegalInstruction(addr) => {
             let vpn = VirtPage::from_addr(addr);
-            warn!("store/instruction page fault @ {:#x} vpn: {}", addr, vpn);
+            warn!("store/instruction page fault @ {:#x} vpn: {} flags: {:?}", addr, vpn, task.page_table.virt_flags(cx_ref.sepc().into()));
             warn!("the fault occurs @ {:#x}", cx_ref.sepc());
             // warn!("user_task map: {:#x?}", task.pcb.lock().memset);
             warn!(
@@ -121,7 +121,7 @@ pub async fn handle_user_interrupt(
             );
             task.map(PhysPage::from_addr(task.page_table.virt_to_phys(cx_ref.sepc().into()).addr()), vpn, PTEFlags::UVRWX.union(PTEFlags::G));
             unsafe {
-                hexdump(core::slice::from_raw_parts_mut(vpn.to_addr() as _, 0x200), vpn.to_addr());
+                hexdump(core::slice::from_raw_parts_mut(vpn.to_addr() as _, 0x1000), vpn.to_addr());
             }
             // panic!("illegal Instruction")
             // let signal = task.tcb.read().signal.clone();

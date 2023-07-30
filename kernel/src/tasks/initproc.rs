@@ -204,8 +204,8 @@ pub async fn simple_shell() {
 
 pub async fn initproc() {
     println!("start kernel tasks");
-    command("entry-static.exe crypt").await;
-    command("./runtest.exe -w entry-dynamic.exe crypt").await;
+    // command("entry-static.exe crypt").await;
+    // command("./runtest.exe -w entry-dynamic.exe dlopen").await;
 
     // let names = include_str!("../../../tools/testcase-step2/run-static.sh");
     // for (i, x) in names
@@ -239,50 +239,39 @@ pub async fn initproc() {
     //     info!("No.{} finished!", i);
     // }
 
-    // command("busybox echo run time-test").await;
-    // command("time-test").await;
+    command("busybox echo run time-test").await;
+    command("time-test").await;
 
-    // command("busybox echo run busybox_testcode.sh").await;
-    // command("busybox sh busybox_testcode.sh").await;
+    command("busybox echo run busybox_testcode.sh").await;
+    command("busybox sh busybox_testcode.sh").await;
 
-    // command("busybox echo run lua_testcode.sh").await;
-    // command("busybox sh lua_testcode.sh").await;
+    command("busybox echo run lua_testcode.sh").await;
+    command("busybox sh lua_testcode.sh").await;
 
-    // let names = include_str!("../../../tools/testcase-step2/run-static.sh");
-    // for (i, x) in names
-    //     .split('\n')
-    //     .filter(|x| !x.contains("clocale_mbfuncs") && !x.contains("pthread"))
-    //     .enumerate()
-    // {
-    //     println!("No.{} started!", i);
-    //     command(x).await;
-    //     println!("No.{} finished!", i);
-    // }
+    command("busybox echo run libctest_testcode.sh").await;
+    command("busybox sh libctest_testcode.sh").await;
 
-    // command("busybox echo run libctest_testcode.sh").await;
-    // command("busybox sh libctest_testcode.sh").await;
+    command("busybox echo run cyclic_testcode.sh").await;
+    command("busybox sh cyclictest_testcode.sh").await;
+    kill_all_tasks().await;
 
-    // command("busybox echo run cyclic_testcode.sh").await;
-    // command("busybox sh cyclictest_testcode.sh").await;
-    // kill_all_tasks().await;
+    command("libc-bench").await;
 
-    // command("libc-bench").await;
-
-    // command("busybox echo run netperf_testcode.sh").await;
-    // command("busybox sh netperf_testcode.sh").await;
+    command("busybox echo run netperf_testcode.sh").await;
+    command("busybox sh netperf_testcode.sh").await;
     
-    // command("busybox echo run iperf_testcode.sh").await;
-    // command("busybox sh iperf_testcode.sh").await;
-    // kill_all_tasks().await;
+    command("busybox echo run iperf_testcode.sh").await;
+    command("busybox sh iperf_testcode.sh").await;
+    kill_all_tasks().await;
 
-    // command("busybox echo run iozone_testcode.sh").await;
-    // command("busybox sh iozone_testcode.sh").await;
+    command("busybox echo run iozone_testcode.sh").await;
+    command("busybox sh iozone_testcode.sh").await;
 
-    // command("busybox echo run lmbench_testcode.sh").await;
-    // command("busybox sh lmbench_testcode.sh").await;
+    command("busybox echo run lmbench_testcode.sh").await;
+    command("busybox sh lmbench_testcode.sh").await;
 
-    // command("busybox echo run unixbench_testcode.sh").await;
-    // command("busybox sh unixbench_testcode.sh").await;
+    command("busybox echo run unixbench_testcode.sh").await;
+    command("busybox sh unixbench_testcode.sh").await;
 
     // command("cyclictest -a -i 1000 -t1 -n -p99 -D 1s -q").await;
 
