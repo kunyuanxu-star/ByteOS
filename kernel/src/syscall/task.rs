@@ -1,7 +1,7 @@
 use crate::syscall::consts::{from_vfs, CloneFlags, Rusage};
 use crate::syscall::time::WaitUntilsec;
 use crate::tasks::elf::{init_task_stack, ElfExtra};
-use crate::tasks::user::entry::user_entry;
+use crate::tasks::user::entry::{user_entry, UserTaskImplContainer};
 use crate::tasks::{futex_requeue, futex_wake, WaitFutex, WaitPid};
 use alloc::string::String;
 use alloc::sync::Weak;
@@ -23,6 +23,37 @@ use signal::SignalFlags;
 use xmas_elf::program::{SegmentData, Type};
 
 use super::consts::{FutexFlags, LinuxError, UserRef};
+
+impl UserTaskImplContainer {
+    async fn sys_chdir(&mut self, path_ptr: UserRef<i8>) -> Result<usize, LinuxError> {
+        let path = path_ptr.get_cstr().map_err(|_| LinuxError::EINVAL)?;
+        debug!("sys_chdir @ path: {}", path);
+        // check folder exists
+        let dir = open(path).map_err(from_vfs)?;
+        match dir.metadata().unwrap().file_type {
+            fs::FileType::Directory => {
+                let user_task = current_task().as_user_task().unwrap();
+                let mut inner = user_task.pcb.lock();
+                match path.starts_with("/") {
+                    true => inner.curr_dir = String::from(path),
+                    false => inner.curr_dir += path,
+                }
+                Ok(0)
+            }
+            _ => Err(LinuxError::ENOTDIR),
+        }
+    }
+
+    async fn sys_getcwd(&mut self, buf_ptr: UserRef<u8>, size: usize) -> Result<usize, LinuxError> {
+        debug!("sys_getcwd @ buffer_ptr{} size: {}", buf_ptr, size);
+        let buffer = buf_ptr.slice_mut_with_len(size);
+        let curr_path = current_user_task().pcb.lock().curr_dir.clone();
+        let bytes = curr_path.as_bytes();
+        let len = cmp::min(bytes.len(), size);
+        buffer[..len].copy_from_slice(&bytes[..len]);
+        Ok(buf_ptr.into())
+    }
+}
 
 pub async fn sys_chdir(path_ptr: UserRef<i8>) -> Result<usize, LinuxError> {
     let path = path_ptr.get_cstr().map_err(|_| LinuxError::EINVAL)?;

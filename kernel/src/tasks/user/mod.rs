@@ -8,9 +8,11 @@ use frame_allocator::frame_alloc;
 use log::{debug, warn};
 
 use crate::{
-    syscall::{consts::SYS_SIGRETURN, syscall},
+    syscall::consts::SYS_SIGRETURN,
     tasks::hexdump,
 };
+
+use self::entry::UserTaskImplContainer;
 
 use super::UserTaskControlFlow;
 
@@ -72,93 +74,95 @@ pub fn user_cow_int(task: Arc<UserTask>, _cx_ref: &mut Context, addr: usize) {
 }
 
 /// Handle user interrupt.
-pub async fn handle_user_interrupt(
-    task: Arc<UserTask>,
-    cx_ref: &mut Context,
-) -> UserTaskControlFlow {
-    let ustart = 0;
-    unsafe {
-        user_restore(cx_ref);
-    }
-    task.inner_map(|inner| inner.tms.utime += (get_time() - ustart) as u64);
-
-    let sstart = 0;
-    let trap_type = trap_pre_handle(cx_ref);
-    match trap_type {
-        arch::TrapType::Breakpoint => {}
-        arch::TrapType::UserEnvCall => {
-            // if it is sigreturn then break the control flow.
-            if cx_ref.syscall_number() == SYS_SIGRETURN {
-                return UserTaskControlFlow::Break;
-            }
-
-            debug!("syscall num: {}", cx_ref.syscall_number());
-            // sepc += 4, let it can go to next command.
-            cx_ref.syscall_ok();
-            let result = syscall(cx_ref.syscall_number(), cx_ref.args())
-                .await
-                .map_or_else(|e| -e.code(), |x| x as isize) as usize;
-
-            debug!(
-                "[task {}] syscall result: {:#X?}",
-                task.get_task_id(),
-                result
-            );
-
-            cx_ref.set_ret(result);
+impl UserTaskImplContainer {
+    pub async fn handle_user_interrupt(
+        &mut self
+    ) -> UserTaskControlFlow {
+        let task: Arc<UserTask> = self.task.clone();
+        let ustart = 0;
+        unsafe {
+            user_restore(self.cx_ref);
         }
-        arch::TrapType::Time => {
-            // debug!("time interrupt from user");
-        }
-        arch::TrapType::Unknown => {
-            debug!("unknown trap: {:#x?}", cx_ref);
-            panic!("");
-        }
-        arch::TrapType::IllegalInstruction(addr) => {
-            let vpn = VirtPage::from_addr(addr);
-            warn!(
-                "store/instruction page fault @ {:#x} vpn: {} flags: {:?}",
-                addr,
-                vpn,
-                task.page_table.virt_flags(cx_ref.sepc().into())
-            );
-            warn!("the fault occurs @ {:#x}", cx_ref.sepc());
-            // warn!("user_task map: {:#x?}", task.pcb.lock().memset);
-            warn!(
-                "mapped ppn addr: {:#x} @ {}",
-                cx_ref.sepc(),
-                task.page_table.virt_to_phys(cx_ref.sepc().into())
-            );
-            task.map(
-                PhysPage::from_addr(task.page_table.virt_to_phys(cx_ref.sepc().into()).addr()),
-                vpn,
-                PTEFlags::UVRWX.union(PTEFlags::G),
-            );
-            unsafe {
-                hexdump(
-                    core::slice::from_raw_parts_mut(vpn.to_addr() as _, 0x1000),
-                    vpn.to_addr(),
+        task.inner_map(|inner| inner.tms.utime += (get_time() - ustart) as u64);
+    
+        let sstart = 0;
+        let trap_type = trap_pre_handle(self.cx_ref);
+        match trap_type {
+            arch::TrapType::Breakpoint => {}
+            arch::TrapType::UserEnvCall => {
+                // if it is sigreturn then break the control flow.
+                if self.cx_ref.syscall_number() == SYS_SIGRETURN {
+                    return UserTaskControlFlow::Break;
+                }
+    
+                debug!("syscall num: {}", self.cx_ref.syscall_number());
+                // sepc += 4, let it can go to next command.
+                self.cx_ref.syscall_ok();
+                let result = self.syscall(self.cx_ref.syscall_number(), self.cx_ref.args())
+                    .await
+                    .map_or_else(|e| -e.code(), |x| x as isize) as usize;
+    
+                debug!(
+                    "[task {}] syscall result: {:#X?}",
+                    task.get_task_id(),
+                    result
                 );
+    
+                self.cx_ref.set_ret(result);
             }
-            // panic!("illegal Instruction")
-            // let signal = task.tcb.read().signal.clone();
-            // if signal.has_sig(SignalFlags::SIGSEGV) {
-            //     task.exit_with_signal(SignalFlags::SIGSEGV.num());
-            // } else {
-            //     return UserTaskControlFlow::Break
-            // }
-            // current_user_task()
-            //     .tcb
-            //     .write()
-            //     .signal
-            //     .add_signal(SignalFlags::SIGSEGV);
-            // return UserTaskControlFlow::Break;
+            arch::TrapType::Time => {
+                // debug!("time interrupt from user");
+            }
+            arch::TrapType::Unknown => {
+                debug!("unknown trap: {:#x?}", self.cx_ref);
+                panic!("");
+            }
+            arch::TrapType::IllegalInstruction(addr) => {
+                let vpn = VirtPage::from_addr(addr);
+                warn!(
+                    "store/instruction page fault @ {:#x} vpn: {} flags: {:?}",
+                    addr,
+                    vpn,
+                    task.page_table.virt_flags(self.cx_ref.sepc().into())
+                );
+                warn!("the fault occurs @ {:#x}", self.cx_ref.sepc());
+                // warn!("user_task map: {:#x?}", task.pcb.lock().memset);
+                warn!(
+                    "mapped ppn addr: {:#x} @ {}",
+                    self.cx_ref.sepc(),
+                    task.page_table.virt_to_phys(self.cx_ref.sepc().into())
+                );
+                task.map(
+                    PhysPage::from_addr(task.page_table.virt_to_phys(self.cx_ref.sepc().into()).addr()),
+                    vpn,
+                    PTEFlags::UVRWX.union(PTEFlags::G),
+                );
+                unsafe {
+                    hexdump(
+                        core::slice::from_raw_parts_mut(vpn.to_addr() as _, 0x1000),
+                        vpn.to_addr(),
+                    );
+                }
+                // panic!("illegal Instruction")
+                // let signal = task.tcb.read().signal.clone();
+                // if signal.has_sig(SignalFlags::SIGSEGV) {
+                //     task.exit_with_signal(SignalFlags::SIGSEGV.num());
+                // } else {
+                //     return UserTaskControlFlow::Break
+                // }
+                // current_user_task()
+                //     .tcb
+                //     .write()
+                //     .signal
+                //     .add_signal(SignalFlags::SIGSEGV);
+                // return UserTaskControlFlow::Break;
+            }
+            arch::TrapType::StorePageFault(addr) | arch::TrapType::InstructionPageFault(addr) => {
+                debug!("store page fault");
+                user_cow_int(task.clone(), self.cx_ref, addr)
+            }
         }
-        arch::TrapType::StorePageFault(addr) | arch::TrapType::InstructionPageFault(addr) => {
-            debug!("store page fault");
-            user_cow_int(task.clone(), cx_ref, addr)
-        }
-    }
-    task.inner_map(|inner| inner.tms.stime += (get_time() - sstart) as u64);
-    UserTaskControlFlow::Continue
+        task.inner_map(|inner| inner.tms.stime += (get_time() - sstart) as u64);
+        UserTaskControlFlow::Continue
+    }    
 }
