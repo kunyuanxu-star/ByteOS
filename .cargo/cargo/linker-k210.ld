@@ -1,7 +1,9 @@
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
-BASE_ADDRESS = 0x80200000;
+BASE_ADDRESS = 0xffffffc080020000;
+
+__ENTRY_ADDR = 0x80020000;
 
 SECTIONS
 {
@@ -9,7 +11,7 @@ SECTIONS
     . = BASE_ADDRESS;
     start = .;
 
-    .text : {
+    .text ALIGN(4K): AT(__ENTRY_ADDR) {
         stext = .;
         *(.text.entry)
         *(.text .text.*)
@@ -17,14 +19,17 @@ SECTIONS
         etext = .;
     }
 
-    .rodata : {
+    .rodata ALIGN(4K): {
         srodata = .;
         *(.rodata .rodata.*)
         . = ALIGN(4K);
         erodata = .;
     }
 
-    .data : {
+    .data ALIGN(4K): {
+        . = ALIGN(4K);
+        *(.data.prepage)
+        . = ALIGN(4K);
         sdata = .;
         *(.data .data.*)
         *(.sdata .sdata.*)
@@ -33,17 +38,15 @@ SECTIONS
 
     .stack : {
         *(.bss.stack)
-	. = ALIGN(4K);
     }
 
     .bss : {
+        *(.bss.stack)
         sbss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-	. = ALIGN(4K);
         ebss = .;
     }
 
-    . = ALIGN(4K);
     PROVIDE(end = .);
 }
