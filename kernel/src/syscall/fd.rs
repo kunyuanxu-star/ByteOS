@@ -16,6 +16,7 @@ use fs::{
 use log::debug;
 
 use crate::epoll::{EpollEvent, EpollFile};
+use crate::kcov::fuz;
 use crate::socket::Socket;
 use crate::syscall::consts::{from_vfs, FcntlCmd, IoVec, AT_CWD};
 use crate::syscall::func::timespc_now;
@@ -47,6 +48,7 @@ pub async fn sys_dup3(fd_src: usize, fd_dst: usize) -> Result<usize, LinuxError>
 
 pub async fn sys_read(fd: usize, buf_ptr: UserRef<u8>, count: usize) -> Result<usize, LinuxError> {
     let task = current_user_task();
+    fuz!();
     debug!(
         "[task {}] sys_read @ fd: {} buf_ptr: {:?} count: {}",
         task.get_task_id(),
@@ -71,6 +73,7 @@ pub async fn sys_write(fd: usize, buf_ptr: VirtAddr, count: usize) -> Result<usi
         buf_ptr,
         count
     );
+    fuz!();
     let buffer = buf_ptr.slice_with_len(count);
     let file = task.get_fd(fd).ok_or(LinuxError::EBADF)?;
     if let Ok(_) = file.get_bare_file().downcast_arc::<Socket>() {
@@ -81,6 +84,7 @@ pub async fn sys_write(fd: usize, buf_ptr: VirtAddr, count: usize) -> Result<usi
 
 pub async fn sys_readv(fd: usize, iov: UserRef<IoVec>, iocnt: usize) -> Result<usize, LinuxError> {
     debug!("sys_readv @ fd: {}, iov: {}, iocnt: {}", fd, iov, iocnt);
+    fuz!();
 
     let mut rsize = 0;
 
@@ -99,6 +103,7 @@ pub async fn sys_readv(fd: usize, iov: UserRef<IoVec>, iocnt: usize) -> Result<u
 pub async fn sys_writev(fd: usize, iov: UserRef<IoVec>, iocnt: usize) -> Result<usize, LinuxError> {
     debug!("sys_writev @ fd: {}, iov: {}, iocnt: {}", fd, iov, iocnt);
     let mut wsize = 0;
+    fuz!();
 
     let iov = iov.slice_mut_with_len(iocnt);
 
@@ -135,6 +140,8 @@ pub async fn sys_mkdir_at(
         "sys_mkdir_at @ dir_fd: {}, path: {}, mode: {}",
         dir_fd as isize, path, mode
     );
+    fuz!();
+
     let task = current_task().as_user_task().unwrap();
     let dir = to_node(&task, dir_fd)?;
     if path == "/" {
@@ -201,6 +208,7 @@ pub async fn sys_openat(
         "sys_openat @ fd: {}, filename: {}, flags: {:?}, mode: {}",
         fd as isize, filename, flags, mode
     );
+
     let dir = to_node(&user_task, fd)?;
     let file = dir.dentry_open(filename, flags).map_err(from_vfs)?;
     let fd = user_task.alloc_fd().ok_or(LinuxError::EMFILE)?;
@@ -543,6 +551,7 @@ pub async fn sys_readlinkat(
         "sys_readlinkat @ dir_fd: {}, path: {}, buffer: {}, size: {}",
         dir_fd, path, buffer, buffer_size
     );
+    line!();
     let filename = path.get_cstr().map_err(|_| LinuxError::EINVAL)?;
     let buffer = buffer.slice_mut_with_len(buffer_size);
     debug!("readlinkat @ filename: {}", filename);

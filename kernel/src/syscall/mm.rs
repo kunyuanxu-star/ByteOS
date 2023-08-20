@@ -9,6 +9,7 @@ use frame_allocator::ceil_div;
 use log::debug;
 use vfscore::INodeInterface;
 
+use crate::kcov::fuz;
 use crate::syscall::consts::from_vfs;
 use crate::syscall::consts::MSyncFlags;
 use crate::syscall::consts::MapFlags;
@@ -27,6 +28,7 @@ pub async fn sys_brk(addr: isize) -> Result<usize, LinuxError> {
     if addr == 0 {
         Ok(user_task.heap())
     } else {
+        debug!("heap: {:#x}", user_task.heap());
         debug!("alloc pos: {}", addr - user_task.heap() as isize);
         Ok(user_task.sbrk(addr - user_task.heap() as isize))
     }
@@ -40,6 +42,7 @@ pub async fn sys_mmap(
     fd: usize,
     off: usize,
 ) -> Result<usize, LinuxError> {
+    fuz!();
     let flags = MapFlags::from_bits_truncate(flags as _);
     let prot = MmapProt::from_bits_truncate(prot as _);
     let task = current_user_task();
@@ -65,7 +68,6 @@ pub async fn sys_mmap(
     if len == 0 {
         return Ok(addr.into());
     }
-
     if flags.contains(MapFlags::MAP_FIXED) {
         let overlaped = task
             .pcb
@@ -86,7 +88,6 @@ pub async fn sys_mmap(
     {
         return Err(LinuxError::EINVAL);
     }
-
     if flags.contains(MapFlags::MAP_SHARED) {
         match &file {
             Some(file) => task
@@ -147,6 +148,7 @@ pub async fn sys_mmap(
     if let Some(file) = file {
         let buffer = UserRef::<u8>::from(addr).slice_mut_with_len(len);
         file.readat(off, buffer).map_err(from_vfs)?;
+        file.after_mmap(addr.addr(), len);
     }
     Ok(addr.into())
 }

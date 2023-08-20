@@ -259,6 +259,10 @@ impl INodeInterface for FileItem {
     fn poll(&self, events: PollEvent) -> Result<PollEvent, VfsError> {
         self.inner.poll(events)
     }
+
+    fn after_mmap(&self, addr: usize, size: usize) -> vfscore::VfsResult<()> {
+        self.inner.after_mmap(addr, size)
+    }
 }
 
 impl FileItem {

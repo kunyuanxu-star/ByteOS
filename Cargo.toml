@@ -8,6 +8,7 @@ members = [
     "crates/timestamp",
     "crates/vfscore",
     "crates/cv1811-sd",
+    "crates/kcov",
 
     # modules
     "modules/logging",

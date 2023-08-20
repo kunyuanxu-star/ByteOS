@@ -296,7 +296,7 @@ impl UserTask {
         // need alloc frame page
         if after_page > curr_page {
             for i in curr_page..after_page {
-                self.frame_alloc(VirtPage::new(i + 1), MemType::CodeSection, 1);
+                self.frame_alloc(VirtPage::new(i + 1), MemType::CodeSection, 1);            
             }
         }
         let mut inner = self.pcb.lock();
