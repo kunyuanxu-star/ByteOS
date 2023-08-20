@@ -52,8 +52,8 @@ all:
 	cp -R cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --features "$(features)" --offline
 #	cp $(SBI) sbi-qemu
-#	cp $(KERNEL_ELF) kernel-qemu
-	rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary os.bin
+	cp $(KERNEL_ELF) kernel-qemu
+# rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary os.bin
 
 fs-img:
 	rm -f $(FS_IMG)
