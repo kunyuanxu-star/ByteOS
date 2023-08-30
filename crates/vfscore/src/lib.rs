@@ -342,6 +342,10 @@ pub trait INodeInterface: DowncastSync + Send + Sync {
     fn poll(&self, _events: PollEvent) -> VfsResult<PollEvent> {
         Err(VfsError::NotSupported)
     }
+
+    fn after_mmap(&self, _addr: usize, _size: usize) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
 }
 
 impl_downcast!(sync INodeInterface);

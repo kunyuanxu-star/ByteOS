@@ -52,8 +52,8 @@ all:
 	cp -R cargo .cargo
 	RUST_BACKTRACE=1 LOG=$(LOG) cargo build $(RUST_BUILD_OPTIONS) --features "$(features)" --offline
 #	cp $(SBI) sbi-qemu
-#	cp $(KERNEL_ELF) kernel-qemu
-	rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary os.bin
+	cp $(KERNEL_ELF) kernel-qemu
+# rust-objcopy --binary-architecture=riscv64 $(KERNEL_ELF) --strip-all -O binary os.bin
 
 fs-img:
 	rm -f $(FS_IMG)
@@ -61,7 +61,7 @@ fs-img:
 	mkfs.vfat -F 32 $(FS_IMG)
 	sudo mount $(FS_IMG) mount/ -o uid=1000,gid=1000
 	rm -rf mount/*
-	-cp -rf tools/testcase-final2023/* mount/
+	-cp -rf tools/testcase-bench/* mount/
 	sudo umount $(FS_IMG)
 
 build:
@@ -99,7 +99,7 @@ debug: fs-img build
 clean:
 	rm -rf target/
 
-gdb:
+gdb:rust addr2line
 	riscv64-elf-gdb \
         -ex 'file $(KERNEL_ELF)' \
         -ex 'set arch riscv:rv64' \

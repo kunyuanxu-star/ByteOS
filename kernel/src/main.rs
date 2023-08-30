@@ -7,6 +7,7 @@
 #![feature(let_chains)]
 #![feature(panic_info_message)]
 #![feature(stdsimd)]
+#![feature(decl_macro)]
 
 #[macro_use]
 extern crate logging;
@@ -16,11 +17,14 @@ extern crate alloc;
 extern crate bitflags;
 
 mod epoll;
+mod kcov;
 mod modules;
 mod panic;
 mod socket;
 mod syscall;
 mod tasks;
+
+use core::cmp;
 
 use arch::enable_irq;
 use devices;
@@ -31,14 +35,13 @@ use hal;
 use kalloc;
 use vfscore::{INodeInterface, OpenFlags};
 
-use crate::{syscall::cache_task_template, tasks::kernel::kernel_interrupt};
+use crate::tasks::kernel::kernel_interrupt;
 
 #[no_mangle]
 fn main(hart_id: usize, device_tree: usize) {
     // if hart_id != 0 {
     //     loop {}
     // }
-
     extern "C" {
         fn start();
         fn end();
@@ -98,16 +101,16 @@ fn main(hart_id: usize, device_tree: usize) {
 
         // Initialize the Dentry node.
         // dentry::dentry_init(rootfs);
-        FileItem::fs_open("/bin", OpenFlags::O_DIRECTORY)
-            .expect("can't open /bin")
-            .link(
-                "sleep",
-                FileItem::fs_open("busybox", OpenFlags::NONE)
-                    .expect("not hava busybox file")
-                    .inner
-                    .clone(),
-            )
-            .expect("can't link busybox to /bin/sleep");
+        // FileItem::fs_open("/bin", OpenFlags::O_DIRECTORY)
+        //     .expect("can't open /bin")
+        //     .link(
+        //         "sleep",
+        //         FileItem::fs_open("busybox", OpenFlags::NONE)
+        //             .expect("not hava busybox file")
+        //             .inner
+        //             .clone(),
+        //     )
+        //     .expect("can't link busybox to /bin/sleep");
     }
 
     // enable interrupts
@@ -115,15 +118,15 @@ fn main(hart_id: usize, device_tree: usize) {
 
     // cache task with task templates
     // cache_task_template("/bin/busybox").expect("can't cache task");
-    cache_task_template("./busybox").expect("can't cache task");
-    cache_task_template("busybox").expect("can't cache task");
-    cache_task_template("./runtest.exe").expect("can't cache task");
-    cache_task_template("entry-static.exe").expect("can't cache task");
-    cache_task_template("libc.so").expect("can't cache task");
-    cache_task_template("lmbench_all").expect("can't cache task");
+    // cache_task_template("./busybox").expect("can't cache task");
+    // cache_task_template("busybox").expect("can't cache task");
+    // cache_task_template("./runtest.exe").expect("can't cache task");
+    // cache_task_template("entry-static.exe").expect("can't cache task");
+    // cache_task_template("libc.so").expect("can't cache task");
+    // cache_task_template("lmbench_all").expect("can't cache task");
 
     // init kernel threads and async executor
     tasks::init();
-
+    // fuz!();
     println!("Task All Finished!");
 }

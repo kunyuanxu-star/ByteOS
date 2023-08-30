@@ -431,6 +431,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kcov"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "spin 0.9.8",
+]
+
+[[package]]
 name = "kcvitek-sd"
 version = "0.1.0"
 dependencies = [

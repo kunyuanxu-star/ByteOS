@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 use alloc::{
     string::{String, ToString},
-    vec::Vec,
+    vec::Vec, sync::Arc,
 };
 use arch::{console_getchar, console_putchar, switch_to_kernel_page_table};
 use executor::{current_task, yield_now, FUTURE_LIST, TASK_QUEUE};
@@ -256,47 +256,50 @@ pub async fn initproc() {
     //     info!("No.{} finished!", i);
     // }
 
-    command("busybox echo run time-test").await;
-    command("time-test").await;
+    // command("busybox echo run time-test").await;
+    // command("time-test").await;
 
-    command("busybox echo run netperf_testcode.sh").await;
-    command("busybox sh netperf_testcode.sh").await;
+    // command("busybox echo run netperf_testcode.sh").await;
+    // command("busybox sh netperf_testcode.sh").await;
 
-    command("busybox echo run busybox_testcode.sh").await;
-    command("busybox sh busybox_testcode.sh").await;
+    // command("busybox echo run busybox_testcode.sh").await;
+    // command("busybox sh busybox_testcode.sh").await;
 
-    command("busybox echo run libctest_testcode.sh").await;
-    command("busybox sh libctest_testcode.sh").await;
+    // command("busybox echo run libctest_testcode.sh").await;
+    // command("busybox sh libctest_testcode.sh").await;
 
-    command("busybox echo run lua_testcode.sh").await;
-    command("busybox sh lua_testcode.sh").await;
+    // command("busybox echo run lua_testcode.sh").await;
+    // command("busybox sh lua_testcode.sh").await;
 
-    command("busybox echo run cyclic_testcode.sh").await;
-    command("busybox sh cyclictest_testcode.sh").await;
-    kill_all_tasks().await;
+    // command("busybox echo run cyclic_testcode.sh").await;
+    // command("busybox sh cyclictest_testcode.sh").await;
+    // kill_all_tasks().await;
 
-    command("libc-bench").await;
+    // command("libc-bench").await;
 
-    command("busybox echo run iperf_testcode.sh").await;
-    command("busybox sh iperf_testcode.sh").await;
-    kill_all_tasks().await;
+    // command("busybox echo run iperf_testcode.sh").await;
+    // command("busybox sh iperf_testcode.sh").await;
+    // kill_all_tasks().await;
 
-    command("busybox echo run iozone_testcode.sh").await;
-    command("busybox sh iozone_testcode.sh").await;
+    // command("busybox echo run iozone_testcode.sh").await;
+    // command("busybox sh iozone_testcode.sh").await;
 
-    command("busybox echo run lmbench_testcode.sh").await;
-    command("busybox sh lmbench_testcode.sh").await;
+    // command("busybox echo run lmbench_testcode.sh").await;
+    // command("busybox sh lmbench_testcode.sh").await;
 
-    command("busybox echo run unixbench_testcode.sh").await;
-    command("busybox sh unixbench_testcode.sh").await;
+    // command("busybox echo run unixbench_testcode.sh").await;
+    // command("busybox sh unixbench_testcode.sh").await;
 
-    command("copy-file-range-test-1").await;
-    command("copy-file-range-test-2").await;
-    command("copy-file-range-test-3").await;
-    command("copy-file-range-test-4").await;
-    command("interrupts-test-1").await;
-    command("interrupts-test-2").await;
-
+    // command("copy-file-range-test-1").await;
+    // command("copy-file-range-test-2").await;
+    // command("copy-file-range-test-3").await;
+    // command("copy-file-range-test-4").await;
+    // command("interrupts-test-1").await;
+    // command("interrupts-test-2").await;
+    let debug = dentry_open(dentry_root(), "/sys/kernel/debug", OpenFlags::O_CREAT | OpenFlags::O_DIRECTORY).expect("can't create debug folder");
+    let parent = Arc::downgrade(&debug);
+    debug.children.lock().push(Arc::new(DentryNode::new("kcov".to_string(), crate::kcov::Fuz::new(), parent)));
+    command("./fuz-test").await;
     // command("cyclictest -a -i 1000 -t1 -n -p99 -D 1s -q").await;
     // command("busybox mkdir test_dir").await;
     // command("busybox mv test_dir test").await;
