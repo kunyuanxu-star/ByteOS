@@ -29,7 +29,7 @@ members = [
     "drivers/knvme",
     "drivers/kvirtio",
     "drivers/kcvitek-sd",
-    "drivers/k210-sdcard",
+    # "drivers/k210-sdcard",
 
     # kernel
     "kernel"
